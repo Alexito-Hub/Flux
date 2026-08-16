@@ -64,6 +64,35 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     if (candidate != null && mounted) await _play(candidate);
   }
 
+  void _showPrivacyPolicy() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Política de Privacidad'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Flux es una aplicación diseñada para funcionar '
+            'exclusivamente dentro de tu red local.\n\n'
+            '• No recopilamos, almacenamos ni compartimos ningún tipo de '
+            'información personal.\n'
+            '• Todo el descubrimiento de dispositivos (TVs, emisores, receptores) y '
+            'la reproducción de medios ocurre de forma local (LAN) y directa '
+            'entre tus dispositivos.\n'
+            '• No utilizamos servidores externos para telemetría ni analíticas de uso.\n\n'
+            'Al usar Flux, tienes la tranquilidad de que tus datos y hábitos '
+            'de visualización permanecen 100% privados y bajo tu control.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(discoveryControllerProvider);
@@ -105,6 +134,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
             onToggleFollow: () => ref
                 .read(settingsProvider.notifier)
                 .setFollowSource(!settings.followSource),
+            onPrivacyPolicy: _showPrivacyPolicy,
           ),
           const SizedBox(width: 8),
         ],
@@ -504,6 +534,7 @@ class _SubnetMenu extends StatelessWidget {
     required this.onRefreshNetworks,
     required this.onToggleAutoPlay,
     required this.onToggleFollow,
+    required this.onPrivacyPolicy,
   });
 
   final List<LanSubnet> subnets;
@@ -515,6 +546,7 @@ class _SubnetMenu extends StatelessWidget {
   final VoidCallback onRefreshNetworks;
   final VoidCallback onToggleAutoPlay;
   final VoidCallback onToggleFollow;
+  final VoidCallback onPrivacyPolicy;
 
   @override
   Widget build(BuildContext context) {
@@ -533,6 +565,8 @@ class _SubnetMenu extends StatelessWidget {
           onToggleAutoPlay();
         } else if (value == 'follow') {
           onToggleFollow();
+        } else if (value == 'privacy') {
+          onPrivacyPolicy();
         }
       },
       itemBuilder: (context) => [
@@ -615,6 +649,16 @@ class _SubnetMenu extends StatelessWidget {
             leading: Icon(Icons.travel_explore_rounded, size: 20),
             title: Text('Búsqueda exhaustiva'),
             subtitle: Text('Más lenta, revisa ~400 puertos'),
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<Object>(
+          value: 'privacy',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.privacy_tip_outlined, size: 20),
+            title: Text('Política de Privacidad'),
           ),
         ),
       ],
