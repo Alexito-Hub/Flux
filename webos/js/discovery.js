@@ -1,10 +1,4 @@
-/* Descubrimiento de emisiones en la red local, adaptado a lo que un televisor
- * puede hacer de verdad.
- *
- * La app de escritorio barre 254 hosts × 22 puertos porque abre sockets TCP
- * crudos. Aquí cada sondeo pasa por el navegador, así que el orden importa
- * mucho más: primero lo que ya funcionó, luego el puerto de Movie Plus en toda
- * la red, y solo si eso falla se prueban otros puertos. */
+
 var FluxDiscovery = (function () {
   'use strict';
 
@@ -30,21 +24,12 @@ var FluxDiscovery = (function () {
     };
   }
 
-  /* Sin CORS no hay nombre de archivo, así que el título tiene que salir de lo
-   * que sí sabemos. Repetir la dirección — que ya se enseña justo debajo — no
-   * aporta nada; la resolución al menos dice qué estás a punto de ver. */
   function displayTitle(raw, fileName) {
     if (fileName) { return prettyTitle(fileName); }
     if (raw.width && raw.height) { return 'Emisión ' + raw.width + '×' + raw.height; }
     return 'Emisión en directo';
   }
 
-  /* Identifica el archivo, no la dirección.
-   *
-   * Con cabeceras se usa nombre + tamaño + fecha, igual que en escritorio. Sin
-   * ellas queda la duración que reporta el propio reproductor, que es
-   * sorprendentemente buena huella: dos capítulos no duran lo mismo al
-   * milisegundo. */
   function fingerprintOf(raw) {
     if (raw.fileName || raw.size || raw.lastModified) {
       return [raw.fileName || '', raw.size || 0, raw.lastModified || ''].join('|');
@@ -81,11 +66,9 @@ var FluxDiscovery = (function () {
         if (list[i] !== entry) { filtered.push(list[i]); }
       }
       window.localStorage.setItem(FluxConfig.storageKey, JSON.stringify(filtered));
-    } catch (e) { /* sin almacenamiento se sigue funcionando, solo más lento */ }
+    } catch (e) {  }
   }
 
-  /* Acepta lo que se teclee con el mando: `192.168.1.5:4445`, con esquema, con
-   * ruta, o solo la IP (se asume el 4445). */
   function parseAddress(text) {
     var input = String(text || '').replace(/^\s+|\s+$/g, '');
     if (!input) { return null; }
@@ -98,8 +81,6 @@ var FluxDiscovery = (function () {
     if (!port || port < 1 || port > 65535) { return null; }
     return { host: host, port: port };
   }
-
-  /* --- Búsqueda ---------------------------------------------------------- */
 
   function search(handlers) {
     var seen = {};
@@ -124,7 +105,6 @@ var FluxDiscovery = (function () {
       if (!cancelled) { handlers.onDone(found); }
     }
 
-    /* Fase 1: lo que ya funcionó otras veces. */
     function checkKnown(next) {
       var known = loadKnown();
       if (!known.length) { next(); return; }
@@ -137,7 +117,7 @@ var FluxDiscovery = (function () {
           if (--pending === 0) { next(); }
           continue;
         }
-        /* jshint loopfunc:true */
+        
         FluxNet.inspect(parsed.host, parsed.port, function (result) {
           emitFound(result, 'conocido');
           if (--pending === 0) { next(); }
@@ -145,7 +125,6 @@ var FluxDiscovery = (function () {
       }
     }
 
-    /* Fase 2: el puerto de Movie Plus en toda la subred. */
     function sweepPrimary(prefix, next) {
       if (!FluxNet.canSweep()) {
         handlers.onWarning(
@@ -159,19 +138,12 @@ var FluxDiscovery = (function () {
       sweepPorts(prefix, [FluxConfig.primaryPort], next);
     }
 
-    /* Fase 3: otros puertos habituales, solo si hizo falta. */
     function sweepSecondary(prefix, next) {
       if (found > 0 || !FluxNet.canSweep()) { next(); return; }
       phase('amplio', 'otros ' + FluxConfig.secondaryPorts.length + ' puertos');
       sweepPorts(prefix, FluxConfig.secondaryPorts, next);
     }
 
-    /* El barrido no espera a terminar para enseñar lo que encuentra.
-     *
-     * Recorrer los 254 hosts lleva unos 15 segundos, pero el teléfono suele
-     * estar en una IP baja y aparece en el primer segundo. Validar sobre la
-     * marcha significa que ya puedes estar viendo el capítulo mientras el
-     * resto de la red se sigue barriendo por detrás. */
     function sweepPorts(prefix, ports, next) {
       var targets = [];
       var order = FluxConfig.hostOrder();
@@ -187,8 +159,6 @@ var FluxDiscovery = (function () {
       var validating = false;
       var sweepDone = false;
 
-      /* Las validaciones van de una en una: cada una puede acabar abriendo el
-       * pipeline de medios del televisor, y ese recurso no se comparte. */
       function pump() {
         if (validating || cancelled) { return; }
         if (!queue.length) {
@@ -231,7 +201,6 @@ var FluxDiscovery = (function () {
       );
     }
 
-    /* Arranque: hace falta saber en qué red está el televisor. */
     FluxNet.detectLocalIp(function (ip) {
       if (cancelled) { return; }
       checkKnown(function () {

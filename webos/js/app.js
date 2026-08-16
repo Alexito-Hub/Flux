@@ -1,9 +1,4 @@
-/* Orquestación de la app en el televisor: vistas, mando y pegamento entre el
- * descubrimiento y el reproductor.
- *
- * Toda la navegación es por cruceta. No hay ratón que valga: el foco se lleva
- * a mano en dos zonas (resultados y botones) porque el orden natural del DOM
- * no coincide con lo que espera alguien apuntando con un mando. */
+
 (function () {
   'use strict';
 
@@ -23,7 +18,6 @@
   var controlsTimer = null;
   var bannerTimer = null;
 
-  /* Zonas de foco de la vista de búsqueda. */
   var zone = 'actions';
   var cardIndex = 0;
   var actionIndex = 0;
@@ -75,65 +69,38 @@
 
     document.addEventListener('keydown', onKey, false);
 
-    /* --- Ciclo de vida de webOS ------------------------------------------- */
-    /* webOS mata las apps que llevan un rato sin interacción visible. Para
-     * evitarlo hay que llamar a window.webOSSystem.keepAlive(true) y
-     * mantener un heartbeat. Además, al pasar a segundo plano (el usuario
-     * abre otra app o el Launcher), se pausa el video para liberar el
-     * pipeline de medios; al volver, se reanuda. */
     setupLifecycle();
 
-    startSearch();
+    if (!checkLaunchParams()) {
+      startSearch();
+    }
   }
-
-  /* --- Lifecycle de webOS ----------------------------------------------- */
 
   var keepAliveTimer = null;
   var screenSaverDisabled = false;
 
   function setupLifecycle() {
-    /* keepAlive impide que webOS cierre la app tras ~15 minutos de
-     * inactividad. Requiere "keepAlive": true en appinfo.json para
-     * que tenga efecto — sin esa línea en el manifiesto, esta llamada
-     * no hace nada y el sistema mata la app igual. */
+    
     requestKeepAlive(true);
 
-    /* Heartbeat: cada 4 minutos se vuelve a pedir keepAlive. Algunos
-     * firmwares lo revocan pasado un rato y esto lo renueva. */
     keepAliveTimer = setInterval(function () {
       requestKeepAlive(true);
     }, 240000);
 
-    /* Visibilidad: webOS lanza el evento estándar de visibilidad cuando la
-     * app pasa a background (usuario abre el Launcher, otra app, etc.). */
     document.addEventListener('visibilitychange', onVisibilityChange, false);
     document.addEventListener('webOSRelaunch', onRelaunch, false);
   }
 
   function requestKeepAlive(value) {
-    /* webOS 3+ expone window.webOSSystem */
+    
     if (window.webOSSystem && typeof webOSSystem.keepAlive === 'function') {
-      try { webOSSystem.keepAlive(value); } catch (e) { /* modelo sin soporte */ }
+      try { webOSSystem.keepAlive(value); } catch (e) {  }
     }
-    /* PalmSystem es el nombre legacy (webOS 1-3). */
+    
     if (window.PalmSystem && typeof PalmSystem.keepAlive === 'function') {
-      try { PalmSystem.keepAlive(value); } catch (e) { /* ídem */ }
+      try { PalmSystem.keepAlive(value); } catch (e) {  }
     }
   }
-
-  /* --- Screensaver / Power Management ---------------------------------- */
-
-  /* webOS apaga la pantalla tras un rato sin input del mando (no del video,
-   * del mando). Esto es lo que hace que "se apague la tele" mientras estás
-   * viendo algo: el TV no detecta actividad del usuario y activa el
-   * screensaver → suspensión → apagado.
-   *
-   * Para evitarlo hay que llamar al servicio Luna de power management y
-   * deshabilitar el screensaver mientras se reproduce video. Es lo mismo que
-   * hacen Netflix, YouTube y cualquier app de streaming de la LG Store.
-   *
-   * Se rehabilita al salir del reproductor para no mantener la pantalla
-   * encendida indefinidamente si el usuario deja la app en búsqueda. */
 
   function setScreenSaver(enabled) {
     if (!window.PalmServiceBridge) { return; }
@@ -142,12 +109,11 @@
     var bridge;
     try { bridge = new window.PalmServiceBridge(); } catch (e) { return; }
 
-    bridge.onservicecallback = function () { /* respuesta ignorada */ };
+    bridge.onservicecallback = function () {  };
 
-    /* Método principal: TVPower → setScreenState. Funciona en webOS 3+. */
     try {
       if (!enabled) {
-        /* Pedir que la pantalla se quede activa. */
+        
         bridge.call(
           'luna://com.webos.service.tvpower/power/turnOnScreenSaver',
           JSON.stringify({ block: true })
@@ -158,10 +124,8 @@
           JSON.stringify({ block: false })
         );
       }
-    } catch (e) { /* servicio no disponible en este modelo */ }
+    } catch (e) {  }
 
-    /* Método alternativo para modelos más nuevos (webOS 6+):
-     * com.webos.service.power2 */
     try {
       var bridge2 = new window.PalmServiceBridge();
       bridge2.onservicecallback = function () {};
@@ -172,12 +136,9 @@
           reason: 'com.alessandro.flux'
         })
       );
-    } catch (e2) { /* ídem */ }
+    } catch (e2) {  }
   }
 
-  /* Inyectar actividad artificial del usuario. Algunos modelos ignoran el
-   * bloqueo de screensaver pero respetan la actividad del usuario. Un
-   * "toque fantasma" cada 3 minutos es la red de seguridad. */
   var activityTimer = null;
 
   function startActivityHeartbeat() {
@@ -187,14 +148,13 @@
       try {
         var bridge = new window.PalmServiceBridge();
         bridge.onservicecallback = function () {};
-        /* Reportar actividad de media: evita que el power manager considere
-         * que el TV está idle. */
+        
         bridge.call(
           'luna://com.webos.service.tvpower/power/turnOnScreen',
           JSON.stringify({ reason: 'remoteKey' })
         );
-      } catch (e) { /* silencioso */ }
-    }, 180000); /* cada 3 minutos */
+      } catch (e) {  }
+    }, 180000); 
   }
 
   function stopActivityHeartbeat() {
@@ -205,38 +165,60 @@
 
   function onVisibilityChange() {
     if (document.hidden) {
-      /* La app pasó a background. Se pausa el video para liberar el
-       * pipeline de medios del televisor — si no se hace, algunos modelos
-       * cierran la app a la fuerza. */
+      
       if (el.video && !el.video.paused) {
         wasPlayingBeforeHide = true;
-        try { el.video.pause(); } catch (e) { /* sin video activo */ }
+        try { el.video.pause(); } catch (e) {  }
       } else {
         wasPlayingBeforeHide = false;
       }
-      /* Rehabilitar screensaver: la app no está visible. */
+      
       setScreenSaver(true);
       stopActivityHeartbeat();
     } else {
-      /* La app volvió a primer plano. Se reanuda si estaba reproduciendo. */
+      
       requestKeepAlive(true);
       if (wasPlayingBeforeHide && el.video) {
         setScreenSaver(false);
         startActivityHeartbeat();
-        try { el.video.play(); } catch (e) { /* el usuario reanudará */ }
+        try { el.video.play(); } catch (e) {  }
         wasPlayingBeforeHide = false;
       }
     }
   }
 
   function onRelaunch() {
-    /* webOSRelaunch se dispara cuando el usuario vuelve a abrir la app
-     * desde el Launcher sin que se haya cerrado. Se renueva keepAlive y
-     * se asegura la vista correcta. */
+    
     requestKeepAlive(true);
+    checkLaunchParams();
   }
 
-  /* --- Vistas ------------------------------------------------------------ */
+  function checkLaunchParams() {
+    var paramsStr = '';
+    if (window.webOSSystem && window.webOSSystem.launchParams) {
+      paramsStr = window.webOSSystem.launchParams;
+    } else if (window.PalmSystem && window.PalmSystem.launchParams) {
+      paramsStr = window.PalmSystem.launchParams;
+    }
+    
+    if (paramsStr) {
+      try {
+        var params = JSON.parse(paramsStr);
+        if (params.host && params.port) {
+          
+          if (window.webOSSystem) { window.webOSSystem.launchParams = ''; }
+          if (window.PalmSystem) { window.PalmSystem.launchParams = ''; }
+          
+          var candidate = FluxDiscovery.candidateFrom(params, 'cast');
+          openPlayer(candidate);
+          return true;
+        }
+      } catch (e) {
+        console.error('Error parseando launchParams', e);
+      }
+    }
+    return false;
+  }
 
   function showView(name) {
     view = name;
@@ -253,8 +235,6 @@
       applyFocus();
     }
   }
-
-  /* --- Búsqueda ---------------------------------------------------------- */
 
   function startSearch() {
     if (search) { search.cancel(); }
@@ -351,8 +331,6 @@
     return card;
   }
 
-  /* --- Dirección a mano --------------------------------------------------- */
-
   function connectManual() {
     var parsed = FluxDiscovery.parseAddress(el.manualInput.value);
     if (!parsed) {
@@ -373,16 +351,8 @@
     });
   }
 
-  /* --- Reproductor -------------------------------------------------------- */
-
   function openPlayer(candidate) {
-    /* Se corta la búsqueda antes de arrancar el video.
-     *
-     * El barrido enseña lo que encuentra sin esperar a terminar, así que al
-     * abrir el reproductor puede seguir habiendo decenas de sondeos en vuelo
-     * contra el resto de la red. En un PC no se nota; en un televisor esos
-     * sockets compiten con el pipeline de medios justo en el momento más
-     * delicado, el arranque de la reproducción. */
+    
     if (search) { search.cancel(); search = null; }
 
     FluxDiscovery.remember(candidate.host, candidate.port);
@@ -392,8 +362,6 @@
     el.playerAddress.innerHTML = escape(candidate.address);
     showControls();
 
-    /* Deshabilitar el screensaver y reportar actividad mientras se reproduce
-     * para evitar que el televisor se suspenda y apague. */
     setScreenSaver(false);
     startActivityHeartbeat();
 
@@ -417,10 +385,7 @@
       },
       onTime: updateSeek,
       onBuffer: updateSeek,
-      /* Feedback visual inmediato al hacer seek con debounce: la barra de
-       * progreso y el tiempo se actualizan ya, sin esperar a que el pipeline
-       * realmente salte. El usuario ve la respuesta al instante aunque el
-       * seek tarde 200-500 ms en ejecutarse. */
+      
       onSeekPreview: function (targetSeconds) {
         var duration = el.video.duration;
         if (!duration || !isFinite(duration)) { return; }
@@ -430,7 +395,7 @@
         el.timeNow.innerHTML = formatTime(targetSeconds);
       },
       onPlaying: function () { hideError(); },
-      onWaiting: function () { /* el propio televisor muestra su indicador */ },
+      onWaiting: function () {  },
       onReconnecting: function (attempt) {
         showBanner('Se cortó la emisión. Reintentando (' + attempt + ')…', true);
       },
@@ -458,8 +423,6 @@
     el.prepare.className = 'prepare';
     hideBanner();
 
-    /* Rehabilitar el screensaver al salir: si el usuario deja la app en
-     * la pantalla de búsqueda y se va, el televisor debe poder suspenderse. */
     setScreenSaver(true);
     stopActivityHeartbeat();
 
@@ -478,7 +441,7 @@
         var end = el.video.buffered.end(el.video.buffered.length - 1);
         el.seekBuffer.style.width = ((end / duration) * 100) + '%';
       }
-    } catch (e) { /* algunos televisores no exponen buffered al principio */ }
+    } catch (e) {  }
   }
 
   function showControls() {
@@ -526,8 +489,6 @@
   function errorVisible() {
     return el.playerError.className.indexOf('is-visible') >= 0;
   }
-
-  /* --- Mando -------------------------------------------------------------- */
 
   function onKey(event) {
     var code = event.keyCode;
@@ -659,9 +620,6 @@
     event.preventDefault();
   }
 
-  /* Lleva el foco real del navegador donde toca. Se usa focus() de verdad y no
-   * solo una clase CSS para que el puntero del mando mágico y la cruceta no se
-   * contradigan. */
   function applyFocus() {
     var target = null;
     if (view === 'search') {
@@ -676,11 +634,9 @@
       target = errorIndex === 0 ? el.btnRetry : el.btnPlayerBack;
     }
     if (target && target.focus) {
-      try { target.focus(); } catch (e) { /* elemento recién creado */ }
+      try { target.focus(); } catch (e) {  }
     }
   }
-
-  /* --- Utilidades --------------------------------------------------------- */
 
   function clamp(value, min, max) {
     if (value < min) { return min; }
@@ -707,8 +663,6 @@
     return (unit === 0 ? size : size.toFixed(1)) + ' ' + units[unit];
   }
 
-  /* El nombre del archivo llega de un servidor de la red: se escapa siempre
-   * antes de meterlo en el DOM. */
   function escape(text) {
     return String(text === null || text === undefined ? '' : text)
       .replace(/&/g, '&amp;')

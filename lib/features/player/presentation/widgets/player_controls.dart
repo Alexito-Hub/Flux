@@ -19,6 +19,7 @@ class PlayerControls extends StatelessWidget {
     required this.isFullscreen,
     required this.following,
     required this.onToggleFollow,
+    required this.onCast,
   });
 
   final PlayerController controller;
@@ -33,6 +34,7 @@ class PlayerControls extends StatelessWidget {
   /// teléfono.
   final bool following;
   final VoidCallback onToggleFollow;
+  final VoidCallback onCast;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +56,7 @@ class PlayerControls extends StatelessWidget {
               compact: compact,
               following: following,
               onToggleFollow: onToggleFollow,
+              onCast: onCast,
             ),
             Expanded(
               child: Center(
@@ -89,6 +92,7 @@ class _TopBar extends StatelessWidget {
     required this.compact,
     required this.following,
     required this.onToggleFollow,
+    required this.onCast,
   });
 
   final String title;
@@ -100,6 +104,7 @@ class _TopBar extends StatelessWidget {
   final bool compact;
   final bool following;
   final VoidCallback onToggleFollow;
+  final VoidCallback onCast;
 
   @override
   Widget build(BuildContext context) {
@@ -163,6 +168,14 @@ class _TopBar extends StatelessWidget {
               following ? Icons.sensors_rounded : Icons.sensors_off_rounded,
             ),
           ),
+          /* Ocultado temporalmente por solicitud
+          IconButton(
+            onPressed: onCast,
+            color: Colors.white,
+            tooltip: 'Transmitir a TV / Dispositivo',
+            icon: const Icon(Icons.cast_rounded),
+          ),
+          */
         ],
       ),
     );

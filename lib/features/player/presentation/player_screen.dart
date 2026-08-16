@@ -14,6 +14,7 @@ import '../../discovery/data/known_hosts_store.dart';
 import '../../discovery/data/stream_prober.dart';
 import '../../discovery/data/stream_watcher.dart';
 import '../../discovery/domain/stream_candidate.dart';
+import '../../cast/presentation/cast_dialog.dart';
 import 'player_controller.dart';
 import 'widgets/player_controls.dart';
 import 'widgets/tracks_sheet.dart';
@@ -375,6 +376,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onToggleFollow: _toggleFollow,
                           onBack: () => Navigator.of(context).maybePop(),
                           onToggleFullscreen: _toggleFullscreen,
+                          onCast: () => CastDialog.show(context, _candidate),
                           onOpenTracks: () {
                             _hideTimer?.cancel();
                             TracksSheet.show(context, _controller)

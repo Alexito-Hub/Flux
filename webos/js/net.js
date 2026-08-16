@@ -1,36 +1,12 @@
-/* Capa de red del televisor.
- *
- * En un navegador no hay sockets crudos, así que el escáner tipo nmap de la
- * app de escritorio no se puede portar. Y el servidor de Movie Plus no manda
- * `Access-Control-Allow-Origin`, con lo que tampoco se pueden leer sus
- * cabeceras por la vía normal.
- *
- * De ahí que el sondeo tenga tres niveles, de más informativo a más tozudo:
- *
- *   1. HEAD leyendo cabeceras — da nombre, tamaño y fecha. Solo funciona si el
- *      runtime del televisor no aplica CORS a las apps empaquetadas. Se
- *      comprueba en caliente en vez de darlo por supuesto.
- *   2. fetch en modo `no-cors` — la respuesta viene opaca y no se puede leer,
- *      pero *que resuelva* ya prueba que algo contestó por HTTP. Sirve para
- *      barrer puertos.
- *   3. Un <video> oculto — reproducir no está sujeto a CORS. Si dispara
- *      `loadedmetadata`, ahí hay un video de verdad; y su duración exacta
- *      sirve de huella para saber si el capítulo ha cambiado.
- */
+
 var FluxNet = (function () {
   'use strict';
 
   var hasFetch = typeof window.fetch === 'function';
   var hasAbort = typeof window.AbortController === 'function';
 
-  /* Se descubre una vez, con el primer servidor que responda, y a partir de
-   * ahí se sabe si podemos permitirnos el nivel 1. */
   var corsAllowed = null;
 
-  /* Sondeos en vuelo. Cancelar el barrido solo deja de lanzar peticiones
-   * nuevas; las que ya salieron seguirían ocupando socket hasta agotar su
-   * plazo. En un televisor eso importa: cuando se abre el reproductor hay que
-   * dejarle el ancho de banda y las conexiones libres al pipeline de medios. */
   var inFlight = [];
 
   function track(controller) {
@@ -43,8 +19,6 @@ var FluxNet = (function () {
     if (i >= 0) { inFlight.splice(i, 1); }
   }
 
-  /* Sondeos de nivel 3 en curso, cada uno con su propio <video>. Se guardan
-   * sus funciones de cierre para poder soltar el pipeline de medios al vuelo. */
   var probesInFlight = [];
 
   function trackProbe(finish) { probesInFlight.push(finish); }
@@ -58,19 +32,17 @@ var FluxNet = (function () {
     var pending = inFlight;
     inFlight = [];
     for (var i = 0; i < pending.length; i++) {
-      try { pending[i].abort(); } catch (e) { /* ya terminada */ }
+      try { pending[i].abort(); } catch (e) {  }
     }
     var probes = probesInFlight.slice();
     for (var j = 0; j < probes.length; j++) {
-      try { probes[j](null); } catch (e) { /* ya terminado */ }
+      try { probes[j](null); } catch (e) {  }
     }
   }
 
   function url(host, port) {
     return 'http://' + host + ':' + port + '/';
   }
-
-  /* --- Nivel 1: cabeceras completas ------------------------------------- */
 
   function probeMeta(host, port, timeout, cb) {
     var request = new XMLHttpRequest();
@@ -126,13 +98,11 @@ var FluxNet = (function () {
     }
   }
 
-  /* Mismo formato que en la app de escritorio: `inline; filename="X.mkv"` y
-   * también el `filename*=UTF-8''...` de RFC 5987. */
   function fileNameFrom(disposition) {
     if (!disposition) { return null; }
     var extended = /filename\*\s*=\s*[^']*'[^']*'([^;]+)/i.exec(disposition);
     if (extended) {
-      try { return decodeURIComponent(trim(extended[1])); } catch (e) { /* sigue */ }
+      try { return decodeURIComponent(trim(extended[1])); } catch (e) {  }
     }
     var simple = /filename\s*=\s*"?([^";]+)"?/i.exec(disposition);
     if (!simple) { return null; }
@@ -143,8 +113,6 @@ var FluxNet = (function () {
   function trim(text) {
     return String(text).replace(/^\s+|\s+$/g, '');
   }
-
-  /* --- Nivel 2: ¿hay alguien ahí? --------------------------------------- */
 
   function probeReachable(host, port, timeout, cb) {
     if (!hasFetch) {
@@ -159,22 +127,6 @@ var FluxNet = (function () {
     var done = false;
     var controller = hasAbort ? new AbortController() : null;
 
-    /* HEAD, no GET.
-     *
-     * Esto costó que la app se cerrara sola en el televisor. Con GET, la
-     * respuesta llega opaca y no se puede leer... pero el navegador **sí** se
-     * descarga el cuerpo. Y el cuerpo aquí es la película entera. Medido
-     * contra un servidor de prueba: un solo sondeo que decía "listo" en 17 ms
-     * se dejaba 59,3 MB en memoria por detrás. El vigilante sondea cada cinco
-     * segundos mientras reproduces, así que en un minuto son unos 700 MB. Un
-     * PC lo aguanta y por eso no se vio en las pruebas de escritorio; un
-     * televisor no, y webOS mata la app.
-     *
-     * HEAD no trae cuerpo, así que no hay nada que descargar. El servidor de
-     * Movie Plus lo admite: se comprobó al principio de todo, responde 200 con
-     * las cabeceras completas. Y si algún servidor contestara 405, la
-     * respuesta opaca resuelve igual, que es lo único que necesitamos saber
-     * aquí: que hay alguien al otro lado. */
     var options = { method: 'HEAD', mode: 'no-cors', cache: 'no-store' };
     if (controller) { options.signal = controller.signal; }
 
@@ -183,7 +135,7 @@ var FluxNet = (function () {
     function stop() {
       untrack(controller);
       if (!controller) { return; }
-      try { controller.abort(); } catch (e) { /* da igual */ }
+      try { controller.abort(); } catch (e) {  }
     }
 
     var timer = setTimeout(function () {
@@ -212,8 +164,6 @@ var FluxNet = (function () {
     });
   }
 
-  /* --- Nivel 3: que lo diga el propio reproductor ----------------------- */
-
   function probeVideo(host, port, timeout, cb) {
     var video = document.createElement('video');
     var done = false;
@@ -229,7 +179,7 @@ var FluxNet = (function () {
       try {
         video.removeAttribute('src');
         video.load();
-      } catch (e) { /* el elemento se descarta igualmente */ }
+      } catch (e) {  }
       // Fuera del DOM en cuanto termina, no cuando venza el plazo: en un
       // televisor con un único pipeline de medios, un <video> de sondeo que
       // sigue vivo le disputa el decodificador al que quiere reproducir.
@@ -268,10 +218,6 @@ var FluxNet = (function () {
     video.src = url(host, port);
   }
 
-  /* --- Sondeo completo de un candidato ---------------------------------- */
-
-  /* Intenta el mejor nivel disponible y cae al siguiente. Devuelve `null` si
-   * en esa dirección no hay nada reproducible. */
   function inspect(host, port, cb) {
     if (corsAllowed === false) {
       probeVideo(host, port, FluxConfig.videoProbeTimeout, cb);
@@ -297,8 +243,6 @@ var FluxNet = (function () {
     return false;
   }
 
-  /* --- Ejecutor con concurrencia limitada -------------------------------- */
-
   function pool(items, limit, worker, onProgress, done) {
     var index = 0;
     var active = 0;
@@ -310,7 +254,7 @@ var FluxNet = (function () {
       while (active < limit && index < items.length) {
         var item = items[index++];
         active++;
-        /* jshint loopfunc:true */
+        
         worker(item, function () {
           active--;
           completed++;
@@ -326,11 +270,6 @@ var FluxNet = (function () {
     return { cancel: function () { cancelled = true; } };
   }
 
-  /* --- Dirección del propio televisor ------------------------------------ */
-
-  /* Sin esto no se sabe qué subred barrer. En un navegador normal no hay forma
-   * de averiguarlo; en webOS sí, preguntándole al gestor de conexiones del
-   * sistema a través del puente de servicios Luna. */
   function detectLocalIp(cb) {
     if (!window.PalmServiceBridge) {
       cb(null);
@@ -376,8 +315,6 @@ var FluxNet = (function () {
     }
   }
 
-  /* El televisor puede estar por cable y por Wi-Fi a la vez. Se prefiere la
-   * que esté realmente conectada, y el cable antes que la Wi-Fi. */
   function pickIp(status) {
     var candidates = [status.wired, status.wifi, status.wifiDirect];
     for (var i = 0; i < candidates.length; i++) {
@@ -389,8 +326,6 @@ var FluxNet = (function () {
     return null;
   }
 
-  /* Solo se habla con direcciones IPv4 privadas. Misma frontera que en la app
-   * de escritorio, aplicada antes de cualquier petición. */
   function isPrivateIp(ip) {
     var parts = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip || '');
     if (!parts) { return false; }
