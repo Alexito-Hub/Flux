@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  El servidor que emite desde el teléfono habla HTTP en claro, así que Android
+  necesita permiso explícito para conectarse a él.
+
+  La configuración de red de Android no admite rangos CIDR: no se puede escribir
+  "permite 192.168.0.0/16 y nada más". Por eso el permiso aquí es general y la
+  restricción real vive en el código, en LanGuard: la app solo abre sockets
+  hacia direcciones IPv4 privadas, y esa comprobación se aplica antes de
+  escanear, antes de seguir una redirección y antes de reproducir.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

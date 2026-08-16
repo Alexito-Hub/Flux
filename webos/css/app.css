@@ -1,0 +1,261 @@
+/* Estilos para televisor.
+ *
+ * Todo está pensado para verse a tres metros y manejarse con una cruceta:
+ * tipografía grande, foco imposible de perder de vista y márgenes generosos
+ * para el "overscan" que todavía recortan algunos televisores.
+ *
+ * Se usa flexbox y no grid: grid necesita Chromium 57, que deja fuera a los
+ * webOS anteriores a 2018.
+ *
+ * Se usan unidades relativas al viewport (vw/vh/%) para que la interfaz
+ * se adapte a cualquier resolución de pantalla webOS (720p, 1080p, 4K).
+ * Los tamaños de fuente y espaciados se expresan con vw para escalar
+ * proporcionalmente. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #0D0F12;
+  color: #FFFFFF;
+  font-family: "LG Smart UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 1.25vw;   /* ~24px en 1920 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.view { display: none; width: 100vw; height: 100vh; }
+.view.is-active { display: block; }
+
+/* --- Búsqueda ---------------------------------------------------------- */
+
+.head { padding: 5.56vh 4.69vw 0 4.69vw; }  /* ~60px/90px en 1920×1080 */
+
+.brand {
+  font-size: 2.71vw;   /* ~52px */
+  font-weight: 700;
+  letter-spacing: -0.05vw;
+  margin-bottom: 1.67vh;
+}
+.bolt { color: #3DDC97; }
+
+.status { font-size: 1.46vw; color: #C9D1D9; margin-bottom: 1.67vh; }
+
+.bar {
+  height: 0.56vh;
+  background: #1D212A;
+  border-radius: 0.28vh;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 0.56vh;
+  width: 0;
+  background: #3DDC97;
+  border-radius: 0.28vh;
+  transition: width 200ms linear;
+}
+
+.warning {
+  margin-top: 1.67vh;
+  font-size: 1.15vw;
+  color: #E0B33C;
+  min-height: 2.59vh;
+}
+
+.results {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 3.70vh 4.69vw 0 4.69vw;
+  height: 51.85vh;    /* ~560px */
+  overflow: hidden;
+}
+
+.card {
+  width: 28.13vw;     /* ~540px */
+  margin: 0 1.56vw 2.78vh 0;
+  padding: 2.59vh 1.67vw;
+  background: #16191F;
+  border: 3px solid #2A2F38;
+  border-radius: 0.94vw;
+  outline: none;
+}
+.card:focus {
+  border-color: #3DDC97;
+  background: #1D242B;
+  /* El desplazamiento es deliberado: en un televisor el foco tiene que
+     notarse desde el sofá, no insinuarse. */
+  transform: scale(1.03);
+}
+.card-title {
+  font-size: 1.67vw;   /* ~32px */
+  font-weight: 600;
+  margin-bottom: 0.93vh;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-meta { font-size: 1.09vw; color: #8B949E; }
+.card-tags { margin-top: 1.48vh; font-size: 0.99vw; color: #8B949E; }
+.tag {
+  display: inline-block;
+  padding: 0.46vh 0.63vw;
+  margin-right: 0.52vw;
+  background: #22272F;
+  border-radius: 0.42vw;
+}
+.tag-warn { color: #E0B33C; }
+
+.empty { display: none; padding: 5.56vh 4.69vw; }
+.empty.is-visible { display: block; }
+.empty-title { font-size: 1.77vw; margin-bottom: 2.22vh; color: #C9D1D9; }
+.empty-hints { list-style: none; }
+.empty-hints li {
+  font-size: 1.25vw;
+  color: #8B949E;
+  margin-bottom: 1.48vh;
+  padding-left: 1.46vw;
+  position: relative;
+}
+.empty-hints li:before {
+  content: "";
+  position: absolute;
+  left: 0; top: 1.11vh;
+  width: 0.42vw; height: 0.42vw;
+  background: #3DDC97;
+  border-radius: 50%;
+}
+
+.actions { padding: 1.85vh 4.69vw; }
+
+.btn {
+  font-family: inherit;
+  font-size: 1.35vw;   /* ~26px */
+  color: #FFFFFF;
+  background: #1D212A;
+  border: 3px solid #2A2F38;
+  border-radius: 0.63vw;
+  padding: 1.67vh 1.98vw;
+  margin-right: 1.25vw;
+  outline: none;
+  cursor: pointer;
+}
+.btn:focus { border-color: #3DDC97; background: #263039; }
+.btn-primary { background: #1E7C55; border-color: #2A9E6C; }
+.btn-primary:focus { background: #249566; border-color: #3DDC97; }
+
+/* --- Dirección a mano --------------------------------------------------- */
+
+.manual-box { padding: 12.96vh 4.69vw; max-width: 57.29vw; }
+.manual-box h2 { font-size: 2.40vw; margin-bottom: 1.85vh; }
+.manual-help { font-size: 1.35vw; color: #8B949E; margin-bottom: 3.70vh; line-height: 1.5; }
+.manual-input {
+  width: 39.58vw;    /* ~760px */
+  font-family: inherit;
+  font-size: 2.08vw;
+  color: #FFFFFF;
+  background: #1D212A;
+  border: 3px solid #2A2F38;
+  border-radius: 0.73vw;
+  padding: 2.04vh 1.46vw;
+  outline: none;
+}
+.manual-input:focus { border-color: #3DDC97; }
+.manual-error { min-height: 3.70vh; margin: 1.85vh 0; font-size: 1.25vw; color: #E06C6C; }
+
+/* --- Reproductor -------------------------------------------------------- */
+
+.view-player { background: #000000; position: relative; }
+
+.video { width: 100vw; height: 100vh; background: #000000; }
+
+.controls {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100vw; height: 100vh;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.controls.is-visible { opacity: 1; }
+
+.controls-top {
+  padding: 5.56vh 4.69vw;
+  background: -webkit-linear-gradient(top, rgba(0,0,0,0.85), rgba(0,0,0,0));
+  background: linear-gradient(to bottom, rgba(0,0,0,0.85), rgba(0,0,0,0));
+}
+.player-title { font-size: 2.08vw; font-weight: 600; margin-bottom: 0.74vh; }
+.player-address { font-size: 1.15vw; color: #A8B3BD; }
+
+.controls-bottom {
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 100%;
+  padding: 7.41vh 4.69vw 5.56vh 4.69vw;
+  background: -webkit-linear-gradient(bottom, rgba(0,0,0,0.9), rgba(0,0,0,0));
+  background: linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0));
+}
+
+.seek { position: relative; height: 0.74vh; background: rgba(255,255,255,0.22); border-radius: 0.37vh; }
+.seek-buffer { position: absolute; left: 0; top: 0; height: 0.74vh; width: 0; background: rgba(255,255,255,0.38); border-radius: 0.37vh; }
+.seek-played { position: absolute; left: 0; top: 0; height: 0.74vh; width: 0; background: #3DDC97; border-radius: 0.37vh; }
+.seek-knob { position: absolute; top: -0.74vh; left: 0; width: 1.25vw; height: 1.25vw; margin-left: -0.63vw; background: #3DDC97; border-radius: 50%; }
+
+.times { display: flex; justify-content: space-between; margin-top: 1.67vh; font-size: 1.35vw; }
+.hints { margin-top: 2.04vh; font-size: 1.04vw; color: #8B949E; }
+
+.banner {
+  position: absolute;
+  left: 50%; top: 5.56vh;
+  -webkit-transform: translateX(-50%);
+  transform: translateX(-50%);
+  width: 43.75vw;     /* ~840px */
+  padding: 2.04vh 1.56vw;
+  background: rgba(0,0,0,0.82);
+  border: 2px solid rgba(61,220,151,0.5);
+  border-radius: 2.08vw;
+  font-size: 1.35vw;
+  text-align: center;
+  display: none;
+}
+.banner.is-visible { display: block; }
+.banner.is-warning { border-color: rgba(224,179,60,0.6); color: #E0B33C; }
+
+.prepare {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  text-align: center;
+  padding-top: 39.81vh;   /* ~430px */
+}
+.prepare.is-visible { display: block; }
+.prepare-title { font-size: 1.98vw; font-weight: 600; margin-top: 3.15vh; }
+.prepare-note { font-size: 1.25vw; color: #8B949E; margin-top: 0.93vh; }
+
+.spinner {
+  display: inline-block;
+  width: 3.33vw; height: 3.33vw;   /* ~64px */
+  border: 0.31vw solid rgba(255,255,255,0.18);
+  border-top-color: #3DDC97;
+  border-radius: 50%;
+  -webkit-animation: spin 900ms linear infinite;
+  animation: spin 900ms linear infinite;
+}
+@-webkit-keyframes spin { to { -webkit-transform: rotate(360deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.player-error {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.92);
+  display: none;
+  padding: 37.04vh 4.69vw 0 4.69vw;
+  text-align: center;
+}
+.player-error.is-visible { display: block; }
+#player-error-text { font-size: 1.67vw; line-height: 1.5; margin-bottom: 4.07vh; }
+.player-error .actions { padding: 0; }

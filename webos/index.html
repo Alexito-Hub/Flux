@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, user-scalable=no">
+  <title>Flux</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+  <!-- Vista 1: búsqueda ------------------------------------------------ -->
+  <section id="view-search" class="view is-active">
+    <header class="head">
+      <h1 class="brand"><span class="bolt">&#9889;</span> Flux</h1>
+      <p id="search-status" class="status">Detectando la red del televisor&hellip;</p>
+      <div class="bar"><div id="search-bar" class="bar-fill"></div></div>
+      <p id="search-warning" class="warning"></p>
+    </header>
+
+    <div id="results" class="results"></div>
+
+    <div id="empty" class="empty">
+      <p class="empty-title">Aún no hay ninguna emisión</p>
+      <ul class="empty-hints">
+        <li>Empieza a transmitir en el teléfono antes de buscar.</li>
+        <li>El televisor y el teléfono deben estar en el mismo Wi-Fi.</li>
+        <li>Si el router tiene aislamiento de clientes, ningún escaneo funcionará.</li>
+      </ul>
+    </div>
+
+    <footer class="actions">
+      <button id="btn-search" class="btn" data-focus>Buscar de nuevo</button>
+      <button id="btn-manual" class="btn" data-focus>Escribir dirección</button>
+    </footer>
+  </section>
+
+  <!-- Vista 2: dirección a mano ----------------------------------------- -->
+  <section id="view-manual" class="view">
+    <div class="manual-box">
+      <h2>Conectar a mano</h2>
+      <p class="manual-help">
+        Escribe la dirección que muestra la app al empezar a transmitir.
+        Si no pones puerto, se usa el 4445.
+      </p>
+      <input id="manual-input" class="manual-input" type="text"
+             placeholder="192.168.1.5:4445" data-focus>
+      <p id="manual-error" class="manual-error"></p>
+      <div class="actions">
+        <button id="btn-connect" class="btn btn-primary" data-focus>Conectar</button>
+        <button id="btn-manual-back" class="btn" data-focus>Volver</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Vista 3: reproductor ---------------------------------------------- -->
+  <section id="view-player" class="view view-player">
+    <video id="video" class="video" playsinline></video>
+
+    <div id="banner" class="banner"></div>
+
+    <div id="prepare" class="prepare">
+      <div class="spinner"></div>
+      <p id="prepare-title" class="prepare-title"></p>
+      <p id="prepare-note" class="prepare-note">Precargando&hellip;</p>
+    </div>
+
+    <div id="controls" class="controls">
+      <div class="controls-top">
+        <p id="player-title" class="player-title"></p>
+        <p id="player-address" class="player-address"></p>
+      </div>
+      <div class="controls-bottom">
+        <div class="seek">
+          <div id="seek-buffer" class="seek-buffer"></div>
+          <div id="seek-played" class="seek-played"></div>
+          <div id="seek-knob" class="seek-knob"></div>
+        </div>
+        <div class="times">
+          <span id="time-now">00:00</span>
+          <span id="time-total">--:--</span>
+        </div>
+        <p class="hints">
+          OK reproducir/pausar &nbsp;·&nbsp; &#9664; &#9654; saltar 10 s
+          &nbsp;·&nbsp; &#9650; &#9660; saltar 60 s &nbsp;·&nbsp;
+          <span id="follow-hint">seguimiento activo</span> &nbsp;·&nbsp;
+          ATRÁS salir
+        </p>
+      </div>
+    </div>
+
+    <div id="player-error" class="player-error">
+      <p id="player-error-text"></p>
+      <div class="actions">
+        <button id="btn-retry" class="btn btn-primary" data-focus>Reintentar</button>
+        <button id="btn-player-back" class="btn" data-focus>Volver</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="js/config.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/discovery.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "id": "com.alessandro.flux",
+  "version": "1.0.0",
+  "vendor": "Alessandro",
+  "type": "web",
+  "main": "index.html",
+  "title": "Flux",
+  "appDescription": "Encuentra y reproduce la emisión de tu red local",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#0D0F12",
+  "iconColor": "#3DDC97",
+  "disableBackHistoryAPI": true,
+  "supportPortraitMode": false,
+  "keepAlive": true
+}
