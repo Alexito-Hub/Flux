@@ -17,8 +17,18 @@ class SSAPClient {
       _isConnected = true;
       
       _socket!.listen((data) {
-        final response = jsonDecode(data);
+        final Map<String, dynamic> response =
+            jsonDecode(data as String) as Map<String, dynamic>;
         debugPrint('[Flux] SSAP Message: $response');
+        if (response['type'] == 'registered') {
+          final key = (response['payload'] as Map<String, dynamic>?)?['client-key']
+              as String?;
+          if (key != null) {
+            SharedPreferences.getInstance().then(
+              (p) => p.setString('webos_client_key_$ip', key),
+            );
+          }
+        }
       }, onDone: () {
         _isConnected = false;
       }, onError: (e) {
@@ -74,7 +84,7 @@ class SSAPClient {
             'WRITE_SETTINGS'
           ]
         },
-        'client-key': ?clientKey,
+        if (clientKey != null) 'client-key': clientKey,
       }
     };
 

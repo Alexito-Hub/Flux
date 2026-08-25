@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../discovery/data/subnet_detector.dart';
+import '../discovery/data/parallel.dart';
 import 'receiver_service.dart';
 
 class TVDevice {
@@ -111,18 +112,20 @@ class TVDiscoveryNotifier extends Notifier<List<TVDevice>> {
   }
 
   Future<void> _discoverWebOSTVs(Iterable<String> hosts) async {
-    for (final host in hosts) {
-      Socket.connect(host, 3000, timeout: const Duration(milliseconds: 400)).then((socket) {
-        socket.destroy();
-        _addDevice(TVDevice(
-          ip: host,
-          type: 'webos',
-          name: 'LG webOS TV',
-        ));
-      }).catchError((_) {
-        // Ignorar
-      });
-    }
+    final gate = Semaphore(32);
+    await Future.wait([
+      for (final host in hosts)
+        gate.run(() async {
+          try {
+            final socket = await Socket.connect(host, 3000,
+                timeout: const Duration(milliseconds: 400));
+            socket.destroy();
+            _addDevice(TVDevice(ip: host, type: 'webos', name: 'LG webOS TV'));
+          } on Object {
+            // ignorar
+          }
+        }),
+    ]);
   }
 
   void _addDevice(TVDevice device) {

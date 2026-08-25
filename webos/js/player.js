@@ -1,4 +1,13 @@
 
+/**
+ * Equivalente webOS de:
+ *   lib/features/player/data/player_controller.dart    (reproducción, reconexión)
+ *   lib/features/player/data/progress_store.dart       (persistencia de progreso)
+ *
+ * Estas implementaciones deben mantenerse en sincronía en cuanto al protocolo
+ * (lógica de reconexión, guardado de progreso, fingerprint). Si cambias uno,
+ * revisa el otro.
+ */
 function FluxPlayer(video, handlers) {
   'use strict';
 
@@ -23,6 +32,7 @@ function FluxPlayer(video, handlers) {
   var seekDebounceTimer = null;
   var seekPending = null;
   var seeking = false;
+  var _lastSaveAt = 0;
 
   function emit(name, payload) {
     if (destroyed) { return; }
@@ -64,6 +74,9 @@ function FluxPlayer(video, handlers) {
     seekPending = null;
     clearTimeout(seekDebounceTimer);
     resumeAt = opts.resumeAt || 0;
+    if (resumeAt === 0 && next.fingerprint) {
+      resumeAt = _loadProgress(next.fingerprint);
+    }
     lastProgressAt = Date.now();
     emit('onPreparing', { candidate: candidate, resuming: resumeAt > 0 });
 
@@ -202,19 +215,17 @@ function FluxPlayer(video, handlers) {
 
   function reconnectNow() {
     if (destroyed || !candidate) { return; }
+    var mine = generation;
     var saved = video.currentTime || resumeAt;
 
     try {
       var promise = video.play();
       if (promise && promise.then) {
         promise.then(function () {
-          
-          if (destroyed) { return; }
+          if (destroyed || mine !== generation) { return; }
           lastProgressAt = Date.now();
-          
         })['catch'](function () {
-          if (destroyed) { return; }
-          
+          if (destroyed || mine !== generation) { return; }
           fullReload(saved);
         });
         return;
@@ -222,6 +233,7 @@ function FluxPlayer(video, handlers) {
     } catch (e) {
       
     }
+    if (mine !== generation) { return; }
     fullReload(saved);
   }
 
@@ -314,6 +326,26 @@ function FluxPlayer(video, handlers) {
   }
   this.check = check;
 
+  function _saveProgress() {
+    if (!candidate || !video.duration || !isFinite(video.duration)) { return; }
+    var key = 'flux.progress.' + candidate.fingerprint;
+    var pct = video.currentTime / video.duration;
+    try {
+      if (pct >= 0.95) {
+        localStorage.removeItem(key);
+      } else if (video.currentTime > 10) {
+        localStorage.setItem(key, String(Math.floor(video.currentTime)));
+      }
+    } catch (e) {}
+  }
+
+  function _loadProgress(fingerprint) {
+    try {
+      var val = parseInt(localStorage.getItem('flux.progress.' + fingerprint), 10);
+      return (val && val > 0) ? val : 0;
+    } catch (e) { return 0; }
+  }
+
   function onMeta() {
     if (video.duration && isFinite(video.duration)) {
       var print = 'dur:' + video.duration.toFixed(3);
@@ -331,6 +363,10 @@ function FluxPlayer(video, handlers) {
     if (video.currentTime > 0) {
       resumeAt = video.currentTime;
       if (attempt > 0) { attempt = 0; }
+      if (Date.now() - _lastSaveAt > 5000 && candidate) {
+        _saveProgress();
+        _lastSaveAt = Date.now();
+      }
     }
     emit('onTime', video.currentTime);
   }
@@ -414,6 +450,7 @@ function FluxPlayer(video, handlers) {
   };
 
   this.destroy = function () {
+    _saveProgress();
     destroyed = true;
     stopWatching();
     clearTimeout(reconnectTimer);

@@ -1,4 +1,16 @@
 
+/**
+ * Equivalente webOS de:
+ *   lib/features/discovery/data/port_scanner.dart   (sondeo TCP / reachability)
+ *   lib/features/discovery/data/stream_prober.dart  (validación HTTP + metadatos)
+ *   lib/features/discovery/data/parallel.dart       (pool de concurrencia)
+ *   lib/features/discovery/data/subnet_detector.dart (detección de IP local)
+ *   lib/core/net/lan_guard.dart                     (isPrivateIp)
+ *
+ * Estas implementaciones deben mantenerse en sincronía en cuanto al protocolo
+ * (método HEAD, timeouts, lógica de sondeo en tres niveles). Si cambias uno,
+ * revisa el otro.
+ */
 var FluxNet = (function () {
   'use strict';
 
@@ -165,7 +177,12 @@ var FluxNet = (function () {
     });
   }
 
+  var _videoSlots = 0;
+  var _MAX_VIDEO_SLOTS = 2;
+
   function probeVideo(host, port, timeout, cb) {
+    if (_videoSlots >= _MAX_VIDEO_SLOTS) { cb(null); return; }
+    _videoSlots++;
     var video = document.createElement('video');
     var done = false;
     var timer;
@@ -185,6 +202,7 @@ var FluxNet = (function () {
       // televisor con un único pipeline de medios, un <video> de sondeo que
       // sigue vivo le disputa el decodificador al que quiere reproducir.
       if (video.parentNode) { video.parentNode.removeChild(video); }
+      _videoSlots--;
       cb(result);
     }
 
@@ -327,22 +345,9 @@ var FluxNet = (function () {
     return null;
   }
 
-  function isPrivateIp(ip) {
-    var parts = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip || '');
-    if (!parts) { return false; }
-    var a = +parts[1], b = +parts[2], c = +parts[3], d = +parts[4];
-    if (a > 255 || b > 255 || c > 255 || d > 255) { return false; }
-    if (a === 169 && b === 254) { return false; }
-    if (a === 10) { return true; }
-    if (a === 172 && b >= 16 && b <= 31) { return true; }
-    if (a === 192 && b === 168) { return true; }
-    return false;
-  }
+  function isPrivateIp(ip) { return FluxUtils.isPrivateIp(ip); }
 
-  function prefixOf(ip) {
-    var parts = ip.split('.');
-    return parts[0] + '.' + parts[1] + '.' + parts[2];
-  }
+  function prefixOf(ip) { return FluxUtils.prefixOf(ip); }
 
   return {
     url: url,

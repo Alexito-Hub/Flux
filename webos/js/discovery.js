@@ -1,4 +1,14 @@
 
+/**
+ * Equivalente webOS de:
+ *   lib/features/discovery/data/discovery_repository.dart  (lógica de búsqueda)
+ *   lib/features/discovery/data/known_hosts_store.dart     (persistencia)
+ *   lib/features/discovery/domain/stream_candidate.dart    (modelo + fingerprint)
+ *   lib/core/utils/formatters.dart                         (prettyTitle)
+ *
+ * Estas implementaciones deben mantenerse en sincronía en cuanto al protocolo
+ * (puertos, orden de fases, lógica de fingerprint). Si cambias uno, revisa el otro.
+ */
 var FluxDiscovery = (function () {
   'use strict';
 
@@ -25,7 +35,7 @@ var FluxDiscovery = (function () {
   }
 
   function displayTitle(raw, fileName) {
-    if (fileName) { return prettyTitle(fileName); }
+    if (fileName) { return FluxUtils.prettyTitle(fileName); }
     if (raw.width && raw.height) { return 'Emisión ' + raw.width + '×' + raw.height; }
     return 'Emisión en directo';
   }
@@ -40,12 +50,7 @@ var FluxDiscovery = (function () {
     return 'desconocido';
   }
 
-  function prettyTitle(fileName) {
-    var name = String(fileName);
-    var dot = name.lastIndexOf('.');
-    if (dot > 0 && name.length - dot <= 5) { name = name.substring(0, dot); }
-    return name.replace(/[._]+/g, ' ').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
-  }
+
 
   function loadKnown() {
     try {
@@ -62,7 +67,7 @@ var FluxDiscovery = (function () {
       var list = loadKnown();
       var entry = host + ':' + port;
       var filtered = [entry];
-      for (var i = 0; i < list.length && filtered.length < 8; i++) {
+      for (var i = 0; i < list.length && filtered.length < 12; i++) {
         if (list[i] !== entry) { filtered.push(list[i]); }
       }
       window.localStorage.setItem(FluxConfig.storageKey, JSON.stringify(filtered));
@@ -235,7 +240,6 @@ var FluxDiscovery = (function () {
     search: search,
     remember: remember,
     parseAddress: parseAddress,
-    candidateFrom: candidateFrom,
-    prettyTitle: prettyTitle
+    candidateFrom: candidateFrom
   };
 }());

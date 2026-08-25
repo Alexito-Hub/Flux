@@ -21,7 +21,6 @@
   var zone = 'actions';
   var cardIndex = 0;
   var actionIndex = 0;
-  var actionIndex = 0;
   var manualIndex = 0;
   var errorIndex = 0;
   
@@ -786,32 +785,9 @@
     return value;
   }
 
-  function formatTime(seconds) {
-    if (!seconds || !isFinite(seconds)) { return '--:--'; }
-    var total = Math.floor(seconds);
-    var hours = Math.floor(total / 3600);
-    var minutes = Math.floor((total % 3600) / 60);
-    var secs = total % 60;
-    var mm = (minutes < 10 ? '0' : '') + minutes;
-    var ss = (secs < 10 ? '0' : '') + secs;
-    return hours > 0 ? hours + ':' + mm + ':' + ss : mm + ':' + ss;
-  }
-
-  function formatSize(bytes) {
-    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    var size = bytes;
-    var unit = 0;
-    while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit++; }
-    return (unit === 0 ? size : size.toFixed(1)) + ' ' + units[unit];
-  }
-
-  function escape(text) {
-    return String(text === null || text === undefined ? '' : text)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
+  var formatTime = FluxUtils.formatTime;
+  var formatSize = FluxUtils.formatSize;
+  var escape = FluxUtils.escape;
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     setTimeout(init, 0);
