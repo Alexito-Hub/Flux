@@ -93,6 +93,41 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     );
   }
 
+  void _showAbout() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Acerca de Flux'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Flux es un reproductor y escáner de streams para redes locales '
+              'que te permite enviar y recibir emisiones fácilmente entre tus dispositivos.',
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Creado por Alessandro',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text('© 2026 Todos los derechos reservados.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(discoveryControllerProvider);
@@ -135,6 +170,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                 .read(settingsProvider.notifier)
                 .setFollowSource(!settings.followSource),
             onPrivacyPolicy: _showPrivacyPolicy,
+            onAbout: _showAbout,
           ),
           const SizedBox(width: 8),
         ],
@@ -535,6 +571,7 @@ class _SubnetMenu extends StatelessWidget {
     required this.onToggleAutoPlay,
     required this.onToggleFollow,
     required this.onPrivacyPolicy,
+    required this.onAbout,
   });
 
   final List<LanSubnet> subnets;
@@ -547,6 +584,7 @@ class _SubnetMenu extends StatelessWidget {
   final VoidCallback onToggleAutoPlay;
   final VoidCallback onToggleFollow;
   final VoidCallback onPrivacyPolicy;
+  final VoidCallback onAbout;
 
   @override
   Widget build(BuildContext context) {
@@ -567,6 +605,8 @@ class _SubnetMenu extends StatelessWidget {
           onToggleFollow();
         } else if (value == 'privacy') {
           onPrivacyPolicy();
+        } else if (value == 'about') {
+          onAbout();
         }
       },
       itemBuilder: (context) => [
@@ -652,6 +692,15 @@ class _SubnetMenu extends StatelessWidget {
           ),
         ),
         const PopupMenuDivider(),
+        const PopupMenuItem<Object>(
+          value: 'about',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.info_outline_rounded, size: 20),
+            title: Text('Acerca de Flux'),
+          ),
+        ),
         const PopupMenuItem<Object>(
           value: 'privacy',
           child: ListTile(

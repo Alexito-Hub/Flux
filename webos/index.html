@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script src="js/debug.js"></script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, user-scalable=no">
   <title>Flux</title>
@@ -8,35 +9,50 @@
 </head>
 <body>
 
-  <!-- Vista 1: búsqueda ------------------------------------------------ -->
+  <!-- Vista 1: Búsqueda ------------------------------------------------ -->
   <section id="view-search" class="view is-active">
-    <header class="head">
-      <h1 class="brand"><span class="bolt">&#9889;</span> Flux</h1>
-      <p id="search-status" class="status">Detectando la red del televisor&hellip;</p>
-      <div class="bar"><div id="search-bar" class="bar-fill"></div></div>
-      <p id="search-warning" class="warning"></p>
+    
+    <header class="app-bar">
+      <div class="brand">
+        <svg class="bolt" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M11 21h-1l1-7H7.5c-.88 0-1.33-.75-1-1.5l5.14-9h1.36l-1 7H16.5c.88 0 1.33.75 1 1.5L12 21z"/></svg> Flux
+      </div>
+      <div class="app-bar-actions">
+        <button id="btn-manual" class="icon-btn" title="Conectar a mano"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></button>
+        <button id="btn-about" class="icon-btn" title="Acerca de"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg></button>
+      </div>
     </header>
+
+    <div class="scan-status">
+      <div class="status-text">
+        <span id="search-status">Detectando la red del televisor&hellip;</span>
+      </div>
+      <div class="bar"><div id="search-bar" class="bar-fill"></div></div>
+      <div id="search-warning" class="warning"></div>
+    </div>
 
     <div id="results" class="results"></div>
 
     <div id="empty" class="empty">
-      <p class="empty-title">Aún no hay ninguna emisión</p>
-      <ul class="empty-hints">
-        <li>Empieza a transmitir en el teléfono antes de buscar.</li>
-        <li>El televisor y el teléfono deben estar en el mismo Wi-Fi.</li>
-        <li>Si el router tiene aislamiento de clientes, ningún escaneo funcionará.</li>
-      </ul>
+      <div class="icon-main"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></div>
+      <h2 class="empty-title">Aún no hay ninguna emisión</h2>
+      <div class="empty-box">
+        <ul class="empty-hints">
+          <li>Empieza a transmitir en el teléfono antes de buscar.</li>
+          <li>El televisor y el teléfono deben estar en el mismo Wi-Fi.</li>
+          <li>Si el router tiene aislamiento de clientes, ningún escaneo funcionará.</li>
+        </ul>
+      </div>
     </div>
 
-    <footer class="actions">
-      <button id="btn-search" class="btn" data-focus>Buscar de nuevo</button>
-      <button id="btn-manual" class="btn" data-focus>Escribir dirección</button>
-    </footer>
+    <!-- Floating Action Button -->
+    <button id="btn-search" class="fab">
+      <span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></span> Buscar
+    </button>
   </section>
 
-  <!-- Vista 2: dirección a mano ----------------------------------------- -->
-  <section id="view-manual" class="view">
-    <div class="manual-box">
+  <!-- Vista 2: Dirección a mano (Modal) ----------------------------------------- -->
+  <section id="view-manual" class="modal-overlay">
+    <div class="modal-content">
       <h2>Conectar a mano</h2>
       <p class="manual-help">
         Escribe la dirección que muestra la app al empezar a transmitir.
@@ -45,18 +61,48 @@
       <input id="manual-input" class="manual-input" type="text"
              placeholder="192.168.1.5:4445" data-focus>
       <p id="manual-error" class="manual-error"></p>
-      <div class="actions">
-        <button id="btn-connect" class="btn btn-primary" data-focus>Conectar</button>
+      <div class="modal-actions">
         <button id="btn-manual-back" class="btn" data-focus>Volver</button>
+        <button id="btn-connect" class="btn btn-primary" data-focus>Conectar</button>
       </div>
     </div>
   </section>
 
-  <!-- Vista 3: reproductor ---------------------------------------------- -->
+  <!-- Vista 4: Acerca de (Modal) ------------------------------------------------ -->
+  <section id="view-about" class="modal-overlay">
+    <div class="modal-content" style="max-width: 40vw;">
+      <h2>Acerca de Flux</h2>
+      <p class="manual-help">
+        Flux es un reproductor y escáner de streams para redes locales.<br><br>
+        • No recopilamos, almacenamos ni compartimos información personal.<br>
+        • El descubrimiento y la reproducción ocurren local y directamente.<br>
+        • No utilizamos servidores externos para telemetría ni analíticas.<br><br>
+        Al usar Flux, tus datos permanecen 100% privados y bajo tu control.<br><br>
+        <span style="color: #3DDC97; font-weight: bold;">Creado por Alessandro</span><br>
+        &copy; 2026 Todos los derechos reservados.
+      </p>
+      <div class="modal-actions">
+        <button id="btn-about-back" class="btn btn-primary" data-focus>Entendido</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Vista 3: Reproductor ---------------------------------------------- -->
   <section id="view-player" class="view view-player">
     <video id="video" class="video" playsinline></video>
 
-    <div id="banner" class="banner"></div>
+    <!-- Skip Feedbacks -->
+    <div id="skip-left" class="skip-feedback left">
+      <span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg></span> -10s
+    </div>
+    <div id="skip-right" class="skip-feedback right">
+      +10s <span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg></span>
+    </div>
+
+    <div id="banner" class="banner">
+      <span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg></span>
+      <span id="banner-text"></span>
+    </div>
 
     <div id="prepare" class="prepare">
       <div class="spinner"></div>
@@ -64,10 +110,17 @@
       <p id="prepare-note" class="prepare-note">Precargando&hellip;</p>
     </div>
 
+
+
     <div id="controls" class="controls">
       <div class="controls-top">
-        <p id="player-title" class="player-title"></p>
-        <p id="player-address" class="player-address"></p>
+        <div class="controls-info" style="flex: 1;">
+          <p id="player-title" class="player-title"></p>
+          <p id="player-address" class="player-address"></p>
+        </div>
+        <button id="btn-tracks" class="icon-btn" style="color: white; transform: scale(1.5);">
+          <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1.5c0 .28-.22.5-.5.5h-3c-.28 0-.5-.22-.5-.5v-4c0-.28.22-.5.5-.5h3c.28 0 .5.22.5.5V11zm6 0h-1.5v-.5h-2v3h2V13H17v1.5c0 .28-.22.5-.5.5h-3c-.28 0-.5-.22-.5-.5v-4c0-.28.22-.5.5-.5h3c.28 0 .5.22.5.5V11z"/></svg>
+        </button>
       </div>
       <div class="controls-bottom">
         <div class="seek">
@@ -89,13 +142,32 @@
     </div>
 
     <div id="player-error" class="player-error">
+      <div class="icon-error"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></div>
       <p id="player-error-text"></p>
+      <p class="player-error-hint">Comprueba que la transmisión sigue activa en el teléfono.</p>
       <div class="actions">
-        <button id="btn-retry" class="btn btn-primary" data-focus>Reintentar</button>
         <button id="btn-player-back" class="btn" data-focus>Volver</button>
+        <button id="btn-retry" class="btn btn-primary" data-focus>Reintentar</button>
       </div>
     </div>
   </section>
+
+  <!-- Tracks Modal -->
+  <div id="view-tracks" class="modal-overlay">
+    <div class="modal modal-large">
+      <h2 class="modal-title">Subtítulos y Audio</h2>
+      <div class="tracks-layout">
+        <div class="tracks-column">
+          <h3>Subtítulos</h3>
+          <ul id="list-subtitles" class="tracks-list"></ul>
+        </div>
+        <div class="tracks-column">
+          <h3>Audio</h3>
+          <ul id="list-audio" class="tracks-list"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="js/config.js"></script>
   <script src="js/net.js"></script>

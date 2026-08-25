@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../core/net/lan_guard.dart';
@@ -84,6 +85,7 @@ class PlayerController extends ChangeNotifier {
   final _subscriptions = <StreamSubscription<Object?>>[];
   Timer? _stallTimer;
   Timer? _reconnectTimer;
+  Timer? _progressTimer;
   DateTime _lastProgress = DateTime.now();
   Duration _resumeAt = Duration.zero;
   bool _disposed = false;
@@ -121,6 +123,7 @@ class PlayerController extends ChangeNotifier {
     await _tuneNetworkBehaviour();
     await player.setVolume(startVolume);
     _startStallWatchdog();
+    _startProgressWatchdog();
     await _load(play: true);
   }
 
@@ -132,6 +135,8 @@ class PlayerController extends ChangeNotifier {
   /// de dar el tirón de los primeros segundos.
   Future<void> switchTo(Uri next) async {
     if (_disposed || !_guard(next)) return;
+    // Guardamos el progreso del vídeo actual antes de cambiar
+    unawaited(_saveProgress());
     _generation++;
     _uri = next;
     _resumeAt = Duration.zero;
@@ -163,6 +168,7 @@ class PlayerController extends ChangeNotifier {
       // y empieza a llenar su caché sin mostrar nada todavía.
       await player.open(Media(_uri.toString()), play: false);
       if (_isStale(generation)) return;
+      await _restoreProgress();
       await _prebuffer(generation);
     } on Object catch (error) {
       debugPrint('[Flux] no se pudo abrir la fuente: $error');
@@ -195,8 +201,8 @@ class PlayerController extends ChangeNotifier {
 
   /// Ajustes de libmpv específicos para servir video por HTTP en una LAN.
   Future<void> _tuneNetworkBehaviour() async {
-    final platform = player.platform;
-    if (platform is! NativePlayer) return;
+    if (kIsWeb) return;
+    final platform = player.platform as dynamic;
     Future<void> set(String key, String value) async {
       try {
         await platform.setProperty(key, value);
@@ -316,6 +322,42 @@ class PlayerController extends ChangeNotifier {
     });
   }
 
+  void _startProgressWatchdog() {
+    _progressTimer?.cancel();
+    _progressTimer = Timer.periodic(const Duration(seconds: 5), (_) => _saveProgress());
+  }
+
+  Future<void> _saveProgress() async {
+    if (_disposed || !hasDuration) return;
+    
+    final currentPos = position.value;
+    // Consideramos finalizada si llegamos al 95% o el flag _completed es true
+    final isFinished = _completed || (currentPos.inSeconds > 0 && currentPos >= _duration * 0.95);
+    
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'flux_progress_${_uri.toString()}';
+
+    if (isFinished) {
+      await prefs.remove(key);
+    } else if (currentPos.inSeconds > 10) {
+      await prefs.setInt(key, currentPos.inSeconds);
+    }
+  }
+
+  Future<void> _restoreProgress() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'flux_progress_${_uri.toString()}';
+    final savedSeconds = prefs.getInt(key);
+    
+    if (savedSeconds != null && savedSeconds > 0) {
+      final restorePos = Duration(seconds: savedSeconds);
+      position.value = restorePos;
+      // Actualizamos para que el reconector sepa desde dónde continuar
+      _resumeAt = restorePos; 
+      await player.seek(restorePos);
+    }
+  }
+
   /// Reintento con espera creciente (1, 2, 4, 8, 10, 10 s), reanudando en el
   /// segundo exacto donde se cortó.
   void _scheduleReconnect() {
@@ -411,8 +453,10 @@ class PlayerController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    unawaited(_saveProgress()); // Un último intento de guardar al cerrar
     _stallTimer?.cancel();
     _reconnectTimer?.cancel();
+    _progressTimer?.cancel();
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());
     }

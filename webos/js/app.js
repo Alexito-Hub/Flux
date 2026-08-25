@@ -21,14 +21,21 @@
   var zone = 'actions';
   var cardIndex = 0;
   var actionIndex = 0;
+  var actionIndex = 0;
   var manualIndex = 0;
   var errorIndex = 0;
+  
+  var tracksCol = 0;
+  var tracksRow = [0, 0];
+  var cachedAudio = [];
+  var cachedSubs = [];
 
   function byId(id) { return document.getElementById(id); }
 
   function init() {
     el.viewSearch = byId('view-search');
     el.viewManual = byId('view-manual');
+    el.viewAbout = byId('view-about');
     el.viewPlayer = byId('view-player');
     el.status = byId('search-status');
     el.bar = byId('search-bar');
@@ -37,10 +44,12 @@
     el.empty = byId('empty');
     el.btnSearch = byId('btn-search');
     el.btnManual = byId('btn-manual');
+    el.btnAbout = byId('btn-about');
     el.manualInput = byId('manual-input');
     el.manualError = byId('manual-error');
     el.btnConnect = byId('btn-connect');
     el.btnManualBack = byId('btn-manual-back');
+    el.btnAboutBack = byId('btn-about-back');
     el.video = byId('video');
     el.banner = byId('banner');
     el.prepare = byId('prepare');
@@ -59,13 +68,23 @@
     el.playerErrorText = byId('player-error-text');
     el.btnRetry = byId('btn-retry');
     el.btnPlayerBack = byId('btn-player-back');
+    el.bannerText = byId('banner-text');
+    el.skipLeft = byId('skip-left');
+    el.skipRight = byId('skip-right');
+    el.btnTracks = byId('btn-tracks');
+    el.viewTracks = byId('view-tracks');
+    el.listSubtitles = byId('list-subtitles');
+    el.listAudio = byId('list-audio');
 
     el.btnSearch.onclick = startSearch;
     el.btnManual.onclick = function () { showView('manual'); };
+    el.btnAbout.onclick = function () { showView('about'); };
     el.btnConnect.onclick = connectManual;
     el.btnManualBack.onclick = function () { showView('search'); };
+    el.btnAboutBack.onclick = function () { showView('search'); };
     el.btnRetry.onclick = function () { hideError(); if (player) { player.retry(); } };
     el.btnPlayerBack.onclick = leavePlayer;
+    if (el.btnTracks) { el.btnTracks.onclick = openTracks; }
 
     document.addEventListener('keydown', onKey, false);
 
@@ -221,17 +240,36 @@
   }
 
   function showView(name) {
+    // Hide all overlays first
+    el.viewManual.className = 'modal-overlay';
+    el.viewAbout.className = 'modal-overlay';
+    el.viewTracks.className = 'modal-overlay';
+    
+    if (name === 'manual') {
+      el.viewManual.className = 'modal-overlay is-active';
+      view = name;
+      manualIndex = 0;
+      el.manualError.innerHTML = '';
+      applyFocus();
+      return;
+    } else if (name === 'about') {
+      el.viewAbout.className = 'modal-overlay is-active';
+      view = name;
+      applyFocus();
+      return;
+    } else if (name === 'tracks') {
+      el.viewTracks.className = 'modal-overlay is-active';
+      view = name;
+      applyFocus();
+      return;
+    }
+
     view = name;
     el.viewSearch.className = 'view' + (name === 'search' ? ' is-active' : '');
-    el.viewManual.className = 'view' + (name === 'manual' ? ' is-active' : '');
     el.viewPlayer.className = 'view view-player' + (name === 'player' ? ' is-active' : '');
 
     if (name === 'search') {
       zone = candidates.length ? 'results' : 'actions';
-      applyFocus();
-    } else if (name === 'manual') {
-      manualIndex = 0;
-      el.manualError.innerHTML = '';
       applyFocus();
     }
   }
@@ -301,31 +339,38 @@
 
   function buildCard(candidate, index) {
     var card = document.createElement('div');
-    card.className = 'card';
+    card.className = 'card' + (index === 0 && candidates.length > 1 ? ' is-best' : '');
     card.tabIndex = -1;
     card.setAttribute('data-index', index);
 
     var tags = '';
-    if (candidate.duration) {
-      tags += '<span class="tag">' + formatTime(candidate.duration) + '</span>';
-    }
     if (candidate.size) {
-      tags += '<span class="tag">' + formatSize(candidate.size) + '</span>';
-    }
-    if (candidate.width) {
-      tags += '<span class="tag">' + candidate.width + '×' + candidate.height + '</span>';
+      tags += '<span class="tag"><span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M18 2h-8L4 8v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-6 6h-2V4h2v4zm3 0h-2V4h2v4zm3 0h-2V4h2v4z"/></svg></span>' + formatSize(candidate.size) + '</span>';
     }
     tags += candidate.seekable
-      ? '<span class="tag">Con avance</span>'
-      : '<span class="tag tag-warn">Sin avance</span>';
+      ? '<span class="tag"><span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg></span>Con avance</span>'
+      : '<span class="tag tag-warn"><span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9C4.63 15.55 4 13.85 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1C19.37 8.45 20 10.15 20 12c0 4.42-3.58 8-8 8z"/></svg></span>Sin avance</span>';
     if (candidate.source === 'conocido') {
-      tags += '<span class="tag">Conocido</span>';
+      tags += '<span class="tag"><span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></span>Conocido</span>';
     }
 
+    var badge = index === 0 && candidates.length > 1 
+      ? '<div class="badge-best">MEJOR</div>' : '';
+
     card.innerHTML =
-      '<p class="card-title">' + escape(candidate.title) + '</p>' +
-      '<p class="card-meta">' + escape(candidate.address) + '</p>' +
-      '<p class="card-tags">' + tags + '</p>';
+      '<div class="card-top">' +
+        '<div class="card-poster"><span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg></span></div>' +
+        '<div class="card-info">' +
+          '<div class="card-title">' + escape(candidate.title) + '</div>' +
+          '<div class="card-meta">' + escape(candidate.address) + '</div>' +
+        '</div>' +
+        badge +
+      '</div>' +
+      '<div class="card-tags">' + tags + '</div>' +
+      '<div class="card-metrics">' +
+        '<div class="metric"><span class="metric-label">Estado</span><span class="metric-val val-good">Apto</span></div>' +
+        '<div class="metric"><span class="metric-label">Duración</span><span class="metric-val">' + (candidate.duration ? formatTime(candidate.duration) : '--:--') + '</span></div>' +
+      '</div>';
 
     card.onclick = function () { openPlayer(candidate); };
     return card;
@@ -445,18 +490,45 @@
   }
 
   function showControls() {
-    el.controls.className = 'controls is-visible';
+    if (el.controls) { el.controls.className = 'controls is-visible'; }
     clearTimeout(controlsTimer);
     controlsTimer = setTimeout(function () {
-      if (!el.video.paused) { el.controls.className = 'controls'; }
+      if (!el.video.paused && el.controls) { el.controls.className = 'controls'; }
     }, 4000);
   }
 
   function toggleControls() {
+    if (!el.controls) return;
     if (el.controls.className.indexOf('is-visible') >= 0) {
       el.controls.className = 'controls';
     } else {
       showControls();
+    }
+  }
+
+  function openTracks() {
+    if (!player) { return; }
+    cachedAudio = player.getAudioTracks();
+    cachedSubs = player.getTextTracks();
+    renderTracks(el.listAudio, cachedAudio, 1);
+    renderTracks(el.listSubtitles, cachedSubs, 0);
+    tracksCol = 0;
+    tracksRow = [
+      Math.max(0, cachedSubs.findIndex(function(t) { return t.enabled; })),
+      Math.max(0, cachedAudio.findIndex(function(t) { return t.enabled; }))
+    ];
+    showView('tracks');
+  }
+
+  function renderTracks(container, tracks, colIndex) {
+    if (!container) return;
+    container.innerHTML = '';
+    for (var i = 0; i < tracks.length; i++) {
+      var li = document.createElement('li');
+      li.className = 'track-item' + (tracks[i].enabled ? ' is-selected' : '');
+      li.tabIndex = -1;
+      li.innerHTML = escape(tracks[i].label);
+      container.appendChild(li);
     }
   }
 
@@ -467,7 +539,7 @@
   }
 
   function showBanner(message, warning) {
-    el.banner.innerHTML = escape(message);
+    el.bannerText.innerHTML = escape(message);
     el.banner.className = 'banner is-visible' + (warning ? ' is-warning' : '');
     clearTimeout(bannerTimer);
     if (warning) { return; }
@@ -475,6 +547,22 @@
   }
 
   function hideBanner() { el.banner.className = 'banner'; }
+
+  var skipTimer = null;
+  function showSkipFeedback(forward) {
+    clearTimeout(skipTimer);
+    if (forward) {
+      el.skipRight.className = 'skip-feedback right is-visible';
+      el.skipLeft.className = 'skip-feedback left';
+    } else {
+      el.skipLeft.className = 'skip-feedback left is-visible';
+      el.skipRight.className = 'skip-feedback right';
+    }
+    skipTimer = setTimeout(function() {
+      el.skipRight.className = 'skip-feedback right';
+      el.skipLeft.className = 'skip-feedback left';
+    }, 700);
+  }
 
   function showError(message) {
     el.prepare.className = 'prepare';
@@ -494,6 +582,8 @@
     var code = event.keyCode;
     if (view === 'player') { onPlayerKey(code, event); return; }
     if (view === 'manual') { onManualKey(code, event); return; }
+    if (view === 'about') { onAboutKey(code, event); return; }
+    if (view === 'tracks') { onTracksKey(code, event); return; }
     onSearchKey(code, event);
   }
 
@@ -503,7 +593,7 @@
       if (zone === 'results') {
         cardIndex = clamp(cardIndex + step, 0, candidates.length - 1);
       } else {
-        actionIndex = clamp(actionIndex + step, 0, 1);
+        actionIndex = clamp(actionIndex + step, 0, 2);
       }
       applyFocus();
       event.preventDefault();
@@ -518,8 +608,10 @@
         openPlayer(candidates[cardIndex]);
       } else if (actionIndex === 0) {
         startSearch();
-      } else {
+      } else if (actionIndex === 1) {
         showView('manual');
+      } else {
+        showView('about');
       }
       event.preventDefault();
     } else if (code === KEY.BACK || code === KEY.ESC) {
@@ -561,6 +653,43 @@
     }
   }
 
+  function onAboutKey(code, event) {
+    if (code === KEY.BACK || code === KEY.ESC || code === KEY.ENTER) {
+      showView('search');
+      event.preventDefault();
+    }
+  }
+
+  function onTracksKey(code, event) {
+    if (code === KEY.BACK || code === KEY.ESC) {
+      showView('player');
+      event.preventDefault();
+      return;
+    }
+    var listLen = tracksCol === 0 ? cachedSubs.length : cachedAudio.length;
+    if (code === KEY.UP || code === KEY.DOWN) {
+      if (listLen > 0) {
+        var step = code === KEY.DOWN ? 1 : -1;
+        tracksRow[tracksCol] = clamp(tracksRow[tracksCol] + step, 0, listLen - 1);
+        applyFocus();
+      }
+      event.preventDefault();
+    } else if (code === KEY.LEFT || code === KEY.RIGHT) {
+      tracksCol = code === KEY.RIGHT ? 1 : 0;
+      applyFocus();
+      event.preventDefault();
+    } else if (code === KEY.ENTER) {
+      var trackId = tracksCol === 0 ? cachedSubs[tracksRow[0]].id : cachedAudio[tracksRow[1]].id;
+      if (tracksCol === 0) {
+        player.setTextTrack(trackId);
+      } else {
+        player.setAudioTrack(trackId);
+      }
+      openTracks(); 
+      event.preventDefault();
+    }
+  }
+
   function onPlayerKey(code, event) {
     if (errorVisible()) {
       if (code === KEY.LEFT || code === KEY.RIGHT) {
@@ -593,16 +722,22 @@
       case KEY.LEFT:
       case KEY.RW:
         if (player) { player.seekBy(-FluxConfig.seekStepSeconds); }
+        showSkipFeedback(false);
         showControls();
         break;
       case KEY.RIGHT:
       case KEY.FF:
         if (player) { player.seekBy(FluxConfig.seekStepSeconds); }
+        showSkipFeedback(true);
         showControls();
         break;
       case KEY.UP:
-        if (player) { player.seekBy(FluxConfig.bigSeekStepSeconds); }
-        showControls();
+        if (el.controls && el.controls.className.indexOf('is-visible') >= 0) {
+          openTracks();
+        } else {
+          if (player) { player.seekBy(FluxConfig.bigSeekStepSeconds); }
+          showControls();
+        }
         break;
       case KEY.DOWN:
         if (player) { player.seekBy(-FluxConfig.bigSeekStepSeconds); }
@@ -626,12 +761,19 @@
       if (zone === 'results' && candidates.length) {
         target = el.results.childNodes[clamp(cardIndex, 0, candidates.length - 1)];
       } else {
-        target = actionIndex === 0 ? el.btnSearch : el.btnManual;
+        target = [el.btnSearch, el.btnManual, el.btnAbout][actionIndex];
       }
     } else if (view === 'manual') {
       target = [el.manualInput, el.btnConnect, el.btnManualBack][manualIndex];
+    } else if (view === 'about') {
+      target = el.btnAboutBack;
     } else if (view === 'player' && errorVisible()) {
       target = errorIndex === 0 ? el.btnRetry : el.btnPlayerBack;
+    } else if (view === 'tracks') {
+      var list = tracksCol === 0 ? el.listSubtitles : el.listAudio;
+      if (list && list.childNodes.length > tracksRow[tracksCol]) {
+        target = list.childNodes[tracksRow[tracksCol]];
+      }
     }
     if (target && target.focus) {
       try { target.focus(); } catch (e) {  }

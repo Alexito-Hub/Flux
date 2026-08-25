@@ -12,5 +12,6 @@
   "iconColor": "#3DDC97",
   "disableBackHistoryAPI": true,
   "supportPortraitMode": false,
-  "keepAlive": true
+  "keepAlive": true,
+  "transparent": true
 }

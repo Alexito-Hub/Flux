@@ -55,7 +55,8 @@ var FluxNet = (function () {
     }
 
     try {
-      request.open('HEAD', url(host, port), true);
+      var query = '?_flux=' + Date.now();
+      request.open('HEAD', url(host, port) + query, true);
     } catch (e) {
       finish(null);
       return;

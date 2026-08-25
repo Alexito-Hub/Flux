@@ -269,15 +269,14 @@ function FluxPlayer(video, handlers) {
     if (destroyed || checking || !candidate || !following) { return; }
     checking = true;
 
-    FluxNet.probeReachable(
+    FluxNet.inspect(
       candidate.host,
       candidate.port,
-      FluxConfig.probeTimeout,
-      function (alive) {
+      function (meta) {
         checking = false;
         if (destroyed) { return; }
 
-        if (!alive) {
+        if (!meta) {
           misses++;
           if (misses >= FluxConfig.missesBeforeLost && !lost) {
             lost = true;
@@ -287,70 +286,33 @@ function FluxPlayer(video, handlers) {
           return;
         }
 
+        var probe = FluxDiscovery.candidateFrom(meta, candidate.source);
         misses = 0;
+
         if (lost) {
           lost = false;
-          retune();
-          // Volvió a haber servidor. Cuál sea el archivo lo dirá el propio
-          // reproductor al recargar: si dura lo mismo es el capítulo de antes
-          // y se reanuda; si dura otra cosa, has cambiado de capítulo.
-          reloadAndIdentify();
+          if (probe.fingerprint === candidate.fingerprint) {
+            emit('onRestored', candidate);
+            reconnectNow();
+          } else {
+            resumeAt = 0;
+            candidate = probe;
+            emit('onChanged', candidate);
+            fullReload(0);
+          }
         } else {
-          retune();
+          if (probe.fingerprint !== candidate.fingerprint) {
+            resumeAt = 0;
+            candidate = probe;
+            emit('onChanged', candidate);
+            fullReload(0);
+          }
         }
+        retune();
       }
     );
   }
   this.check = check;
-
-  function reloadAndIdentify() {
-    if (!candidate) { return; }
-    var previous = lastFingerprint;
-    var resume = video.currentTime || resumeAt;
-
-    var mine = ++generation;
-    preparing = true;
-    seeking = false;
-    seekPending = null;
-    emit('onPreparing', { candidate: candidate, resuming: true });
-
-    applyPipelineHints();
-    video.preload = 'auto';
-    video.src = candidate.url + '?flux=' + Date.now();
-    try { video.load(); } catch (e) {  }
-
-    var deadline = Date.now() + 12000;
-    (function waitMeta() {
-      if (destroyed || mine !== generation) { return; }
-      if (video.readyState >= 1 && video.duration && isFinite(video.duration)) {
-        var current = 'dur:' + video.duration.toFixed(3);
-        var isSame = previous !== null && previous === current;
-        lastFingerprint = current;
-        preparing = false;
-        attempt = 0;
-
-        if (isSame) {
-          if (resume > 0 && resume < video.duration) {
-            safeSeek(resume);
-          }
-          emit('onRestored', candidate);
-        } else {
-          resumeAt = 0;
-          candidate.duration = video.duration;
-          candidate.fingerprint = current;
-          emit('onChanged', candidate);
-        }
-        play();
-        return;
-      }
-      if (Date.now() > deadline) {
-        preparing = false;
-        scheduleReconnect();
-        return;
-      }
-      setTimeout(waitMeta, 200);
-    }());
-  }
 
   function onMeta() {
     if (video.duration && isFinite(video.duration)) {
@@ -404,9 +366,49 @@ function FluxPlayer(video, handlers) {
   }, false);
   video.addEventListener('error', onError, false);
 
+  this.getAudioTracks = function () {
+    var tracks = [];
+    if (video.audioTracks) {
+      for (var i = 0; i < video.audioTracks.length; i++) {
+        var t = video.audioTracks[i];
+        tracks.push({ id: i, label: t.label || t.language || 'Audio ' + (i + 1), enabled: t.enabled });
+      }
+    }
+    return tracks;
+  };
+
+  this.setAudioTrack = function (id) {
+    if (video.audioTracks) {
+      for (var i = 0; i < video.audioTracks.length; i++) {
+        video.audioTracks[i].enabled = (i === id);
+      }
+    }
+  };
+
+  this.getTextTracks = function () {
+    var tracks = [{ id: -1, label: 'Apagado', enabled: true }];
+    var anyEnabled = false;
+    if (video.textTracks) {
+      for (var i = 0; i < video.textTracks.length; i++) {
+        var t = video.textTracks[i];
+        var isShowing = (t.mode === 'showing');
+        if (isShowing) { anyEnabled = true; }
+        tracks.push({ id: i, label: t.label || t.language || 'Subtítulo ' + (i + 1), enabled: isShowing });
+      }
+    }
+    tracks[0].enabled = !anyEnabled;
+    return tracks;
+  };
+
+  this.setTextTrack = function (id) {
+    if (video.textTracks) {
+      for (var i = 0; i < video.textTracks.length; i++) {
+        video.textTracks[i].mode = (i === id) ? 'showing' : 'disabled';
+      }
+    }
+  };
+
   this.start = function (initial) {
-    lastFingerprint = initial.fingerprint &&
-      initial.fingerprint.indexOf('dur:') === 0 ? initial.fingerprint : null;
     self.load(initial, {});
     startWatching();
   };

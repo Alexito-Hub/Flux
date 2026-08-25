@@ -53,7 +53,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   bool _controlsVisible = true;
   bool _fullscreen = false;
-  bool _zoomToFill = false;
   Timer? _hideTimer;
 
   String? _banner;
@@ -64,10 +63,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _skipFeedback = 0;
   bool _skipForward = true;
   Timer? _skipTimer;
+  int _accumulatedSkip = 0;
+  Timer? _commitSkipTimer;
 
   /// Aviso flotante del volumen al deslizar en vertical.
   double? _volumeFeedback;
   Timer? _volumeTimer;
+
+  /// Control de velocidad rápida (2x)
+  bool _fastForwarding = false;
+  double _originalRate = 1.0;
 
   bool get _isMobile => Platform.isAndroid || Platform.isIOS;
 
@@ -75,7 +80,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void initState() {
     super.initState();
     _controller.initialize();
-    _enterImmersive();
+    // En móviles, inicia adaptándose a la pantalla natural sin forzar inmersivo
+    if (!_isMobile && _fullscreen) {
+      windowManager.setFullScreen(true);
+    }
     _restartHideTimer();
     if (ref.read(settingsProvider).followSource) _startWatching();
   }
@@ -84,6 +92,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void dispose() {
     _hideTimer?.cancel();
     _skipTimer?.cancel();
+    _commitSkipTimer?.cancel();
     _volumeTimer?.cancel();
     _bannerTimer?.cancel();
     _stopWatching();
@@ -211,27 +220,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _toggleFullscreen() async {
-    if (_isMobile) {
-      // En móvil ya estamos a pantalla completa: aquí el botón hace lo único
-      // que falta, rellenar la pantalla recortando las bandas negras.
-      setState(() => _zoomToFill = !_zoomToFill);
-      return;
-    }
     final next = !_fullscreen;
-    await windowManager.setFullScreen(next);
+    if (_isMobile) {
+      if (next) {
+        await _enterImmersive();
+      } else {
+        await _exitImmersive();
+      }
+    } else {
+      await windowManager.setFullScreen(next);
+    }
     if (mounted) setState(() => _fullscreen = next);
   }
 
   void _skip(Duration delta) {
-    _controller.seekBy(delta);
+    if (_accumulatedSkip.sign != 0 && _accumulatedSkip.sign != delta.inSeconds.sign) {
+      _accumulatedSkip = 0;
+    }
+    
+    _accumulatedSkip += delta.inSeconds;
+    final forward = _accumulatedSkip > 0;
+    final totalSeconds = _accumulatedSkip.abs();
+
     setState(() {
-      _skipForward = !delta.isNegative;
-      _skipFeedback = delta.inSeconds.abs();
+      _skipForward = forward;
+      _skipFeedback = totalSeconds;
     });
+
     _skipTimer?.cancel();
-    _skipTimer = Timer(const Duration(milliseconds: 700), () {
+    _skipTimer = Timer(const Duration(milliseconds: 800), () {
       if (mounted) setState(() => _skipFeedback = 0);
     });
+
+    _commitSkipTimer?.cancel();
+    _commitSkipTimer = Timer(const Duration(milliseconds: 600), () {
+      if (_accumulatedSkip != 0) {
+        _controller.seekBy(Duration(seconds: _accumulatedSkip));
+        _accumulatedSkip = 0;
+      }
+    });
+  }
+
+  void _startFastForward() {
+    _originalRate = _controller.rate;
+    _controller.setRate(2.0);
+    setState(() => _fastForwarding = true);
+  }
+
+  void _stopFastForward() {
+    if (_fastForwarding) {
+      _controller.setRate(_originalRate);
+      setState(() => _fastForwarding = false);
+    }
   }
 
   void _nudgeVolume(double delta) {
@@ -283,15 +323,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return KeyEventResult.handled;
   }
 
-  void _onDoubleTapAt(Offset localPosition, double width) {
+  void _onMultiTapAt(Offset localPosition, double width, int taps) {
     final third = width / 3;
+    final delta = 10;
+    
     if (localPosition.dx < third) {
-      _skip(const Duration(seconds: -10));
+      _skip(Duration(seconds: -delta));
     } else if (localPosition.dx > width - third) {
-      _skip(const Duration(seconds: 10));
+      _skip(Duration(seconds: delta));
     } else {
-      _controller.playOrPause();
-      _showControls();
+      if (taps == 2) {
+        _controller.playOrPause();
+        _showControls();
+      }
     }
   }
 
@@ -320,7 +364,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     Video(
                       controller: _controller.video,
                       controls: NoVideoControls,
-                      fit: _zoomToFill ? BoxFit.cover : BoxFit.contain,
+                      fit: BoxFit.contain, // Se adapta siempre a la pantalla
                       // El wakelock lo gestiona PlayerController siguiendo el
                       // estado real de reproducción.
                       wakelock: false,
@@ -346,9 +390,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                     _GestureLayer(
                       onTap: _toggleControls,
-                      onDoubleTapAt: (offset) =>
-                          _onDoubleTapAt(offset, constraints.maxWidth),
+                      onMultiTapAt: (offset, taps) =>
+                          _onMultiTapAt(offset, constraints.maxWidth, taps),
                       onVolumeDrag: _isMobile ? _nudgeVolume : null,
+                      onLongPressStart: _startFastForward,
+                      onLongPressEnd: _stopFastForward,
                     ),
                     _BufferingIndicator(controller: _controller),
                     _PreparingOverlay(
@@ -371,7 +417,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           controller: _controller,
                           title: _candidate.title,
                           subtitle: _candidate.address,
-                          isFullscreen: _isMobile ? _zoomToFill : _fullscreen,
+                          isFullscreen: _fullscreen,
                           following: following,
                           onToggleFollow: _toggleFollow,
                           onBack: () => Navigator.of(context).maybePop(),
@@ -394,6 +440,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         message: _banner!,
                         warning: _bannerIsWarning,
                       ),
+                    if (_fastForwarding)
+                      const _SpeedFeedback(),
                     _ErrorOverlay(controller: _controller),
                   ],
                 );
@@ -406,45 +454,66 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 }
 
-/// Gestos táctiles: un toque muestra controles, dos toques saltan, y deslizar
-/// en vertical ajusta el volumen.
+/// Gestos táctiles: un toque muestra controles, toques sucesivos saltan, 
+/// mantener pulsado acelera, y deslizar en vertical ajusta el volumen.
 class _GestureLayer extends StatefulWidget {
   const _GestureLayer({
     required this.onTap,
-    required this.onDoubleTapAt,
+    required this.onMultiTapAt,
     this.onVolumeDrag,
+    this.onLongPressStart,
+    this.onLongPressEnd,
   });
 
   final VoidCallback onTap;
-  final ValueChanged<Offset> onDoubleTapAt;
+  final void Function(Offset position, int taps) onMultiTapAt;
   final ValueChanged<double>? onVolumeDrag;
+  final VoidCallback? onLongPressStart;
+  final VoidCallback? onLongPressEnd;
 
   @override
   State<_GestureLayer> createState() => _GestureLayerState();
 }
 
 class _GestureLayerState extends State<_GestureLayer> {
-  /// Dónde cayó el primer toque del doble toque. Vive en el State y no en
-  /// `build` porque entre `onDoubleTapDown` y `onDoubleTap` pasan ~200 ms, y
-  /// cualquier reconstrucción por el camino perdería la posición — y con ella
-  /// el saber si el usuario quería adelantar o retroceder.
-  Offset? _doubleTapPosition;
+  int _tapCount = 0;
+  Timer? _tapTimer;
+  Offset? _lastPosition;
+
+  void _onPointerDown(PointerDownEvent event) {
+    _lastPosition = event.localPosition;
+  }
+
+  void _onTap() {
+    _tapCount++;
+    
+    if (_tapCount >= 2) {
+      widget.onMultiTapAt(_lastPosition!, _tapCount);
+    }
+    
+    _tapTimer?.cancel();
+    _tapTimer = Timer(const Duration(milliseconds: 260), () {
+      if (_tapCount == 1) {
+        widget.onTap();
+      }
+      _tapCount = 0;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
-      onDoubleTapDown: (details) => _doubleTapPosition = details.localPosition,
-      onDoubleTap: () {
-        final position = _doubleTapPosition;
-        if (position != null) widget.onDoubleTapAt(position);
-      },
-      onVerticalDragUpdate: widget.onVolumeDrag == null
-          ? null
-          // Arrastrar hacia arriba sube: 100 px de recorrido ≈ 40 puntos de
-          // volumen, suficientemente fino para ajustar sin pelearse.
-          : (details) => widget.onVolumeDrag!(-details.delta.dy * 0.4),
+    return Listener(
+      onPointerDown: _onPointerDown,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _onTap,
+        onLongPressStart: (_) => widget.onLongPressStart?.call(),
+        onLongPressEnd: (_) => widget.onLongPressEnd?.call(),
+        onLongPressCancel: () => widget.onLongPressEnd?.call(),
+        onVerticalDragUpdate: widget.onVolumeDrag == null
+            ? null
+            : (details) => widget.onVolumeDrag!(-details.delta.dy * 0.4),
+      ),
     );
   }
 }
@@ -685,6 +754,37 @@ class _VolumeFeedback extends StatelessWidget {
                   '${volume.round()}',
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SpeedFeedback extends StatelessWidget {
+  const _SpeedFeedback();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 48),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Text('Reproduciendo a 2x', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                SizedBox(width: 6),
+                Icon(Icons.fast_forward_rounded, color: Colors.white, size: 18),
               ],
             ),
           ),
