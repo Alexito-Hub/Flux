@@ -90,28 +90,86 @@ class StreamProber {
   static bool _isUsableStatus(int status) =>
       status == HttpStatus.ok || status == HttpStatus.partialContent;
 
-  Future<HttpClientResponse?> _head(Uri uri) async {
+  Future<HttpClientResponse?> _head(Uri uri, {Map<String, String>? httpHeaders}) async {
     final request = await _client.headUrl(uri).timeout(config.probeTimeout);
     request.followRedirects = false;
     request.persistentConnection = false;
+    httpHeaders?.forEach((key, value) {
+      request.headers.set(key, value);
+    });
     return request.close().timeout(config.probeTimeout);
   }
 
-  Future<HttpClientResponse?> _rangeHead(Uri uri) async {
+  Future<HttpClientResponse?> _rangeHead(Uri uri, {Map<String, String>? httpHeaders}) async {
     final request = await _client.getUrl(uri).timeout(config.probeTimeout);
     request.followRedirects = false;
     request.persistentConnection = false;
     request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-0');
+    httpHeaders?.forEach((key, value) {
+      request.headers.set(key, value);
+    });
     final response = await request.close().timeout(config.probeTimeout);
     return response;
+  }
+
+  /// Comprueba una URL de Internet directamente, sin usar `isAllowedTarget` 
+  /// (porque ya se validó con `isAllowedExternalUri`) y usando un timeout más largo.
+  Future<StreamCandidate?> probeExternal(
+    Uri uri, {
+    DiscoverySource source = DiscoverySource.directLink,
+    Map<String, String>? httpHeaders,
+  }) async {
+    HttpClientResponse? response;
+    try {
+      response = await _head(uri, httpHeaders: httpHeaders);
+      if (response == null || !_isUsableStatus(response.statusCode)) {
+        await response?.drain<void>().catchError((_) {});
+        response = await _rangeHead(uri, httpHeaders: httpHeaders);
+      }
+      if (response == null || !_isUsableStatus(response.statusCode)) return null;
+
+      final host = uri.host;
+      final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
+
+      var candidate = _fromHeaders(host, port, response.headers, source, explicitUri: uri, httpHeaders: httpHeaders);
+      
+      // Si fallan las cabeceras HTTP pero la URL claramente apunta a un video,
+      // lo aceptamos de todos modos (muchos servidores son vagos con el Content-Type).
+      if (candidate == null && _videoExtensions.hasMatch(uri.path)) {
+        final headers = response.headers;
+        final disposition = headers.value('content-disposition');
+        final acceptRanges = headers.value(HttpHeaders.acceptRangesHeader)?.toLowerCase() ?? '';
+        
+        candidate = StreamCandidate(
+          host: host,
+          port: port,
+          source: source,
+          explicitUri: uri,
+          fileName: fileNameFrom(disposition),
+          contentType: headers.value(HttpHeaders.contentTypeHeader)?.toLowerCase().trim(),
+          sizeBytes: _contentLength(headers),
+          seekable: acceptRanges.contains('bytes'),
+          lastModified: _lastModified(headers),
+          discoveredAt: DateTime.now(),
+          httpHeaders: httpHeaders,
+        );
+      }
+      return candidate;
+    } on Object {
+      return null;
+    } finally {
+      unawaited(response?.drain<void>().catchError((_) {}) ?? Future.value());
+    }
   }
 
   StreamCandidate? _fromHeaders(
     String host,
     int port,
     HttpHeaders headers,
-    DiscoverySource source,
-  ) {
+    DiscoverySource source, {
+    Uri? explicitUri,
+    Map<String, String>? httpHeaders,
+  }) {
     final contentType =
         headers.value(HttpHeaders.contentTypeHeader)?.toLowerCase().trim();
     final disposition = headers.value('content-disposition');
@@ -133,6 +191,7 @@ class StreamProber {
       host: host,
       port: port,
       source: source,
+      explicitUri: explicitUri,
       fileName: fileName,
       contentType: contentType,
       sizeBytes: length,
@@ -140,6 +199,7 @@ class StreamProber {
       isLiveStream: kind == _MediaKind.playlist,
       lastModified: _lastModified(headers),
       discoveredAt: DateTime.now(),
+      httpHeaders: httpHeaders,
     );
   }
 

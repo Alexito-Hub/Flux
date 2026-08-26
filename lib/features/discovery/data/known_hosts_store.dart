@@ -60,4 +60,19 @@ class KnownHostsStore {
     if (!LanGuard.isAllowedPort(port)) return null;
     return (host: uri.host, port: port);
   }
+
+  /// Acepta una URL completa de Internet. Valida que el esquema sea http/https
+  /// y que no sea una IP privada.
+  static ({String host, int port, Uri uri})? parseExternalLink(String input) {
+    var text = input.trim();
+    if (text.isEmpty) return null;
+    if (!text.contains('://')) text = 'https://$text'; // asume https para internet
+
+    final uri = Uri.tryParse(text);
+    if (uri == null) return null;
+    if (!LanGuard.isAllowedExternalUri(uri)) return null;
+
+    final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
+    return (host: uri.host, port: port, uri: uri);
+  }
 }

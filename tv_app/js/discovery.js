@@ -30,7 +30,8 @@ var FluxDiscovery = (function () {
       source: source,
       address: raw.host + ':' + raw.port,
       title: displayTitle(raw, fileName),
-      fingerprint: fingerprintOf(raw)
+      fingerprint: fingerprintOf(raw),
+      headers: raw.headers || null
     };
   }
 

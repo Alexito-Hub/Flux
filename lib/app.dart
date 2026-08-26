@@ -23,13 +23,15 @@ class _FluxAppState extends ConsumerState<FluxApp> {
     super.initState();
     // Iniciar servicio receptor para permitir que otras instancias de Flux puedan enviar transmisiones aquí
     final receiver = ref.read(castReceiverProvider);
-    receiver.onPlayCommand = (host, port) {
+    receiver.onPlayCommand = (host, port, {url}) {
       // Ejecutar navegación en el UI thread principal
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        final explicitUri = url != null ? Uri.tryParse(url) : null;
         final candidate = StreamCandidate(
           host: host,
           port: port,
-          source: DiscoverySource.manual,
+          source: explicitUri != null ? DiscoverySource.directLink : DiscoverySource.manual,
+          explicitUri: explicitUri,
           fileName: 'Recibiendo emisión',
           seekable: true,
         );

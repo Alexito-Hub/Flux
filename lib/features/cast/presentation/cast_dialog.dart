@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../discovery/domain/stream_candidate.dart';
 import '../ssap_client.dart';
+import '../tizen_client.dart';
 import '../tv_discovery.dart';
 
 class CastDialog extends ConsumerStatefulWidget {
@@ -50,18 +51,36 @@ class _CastDialogState extends ConsumerState<CastDialog> {
     if (tv.type == 'webos') {
       final client = SSAPClient(ip: tv.ip);
       await client.connect();
-      await client.launchApp('com.alessandro.flux', {
+      await client.launchApp('com.aur.flux', {
         'host': host,
         'port': port,
+        if (widget.candidate.isExternal) 'url': widget.candidate.uri.toString(),
+        if (widget.candidate.httpHeaders != null && widget.candidate.httpHeaders!.isNotEmpty) 
+          'headers': widget.candidate.httpHeaders,
       });
       // El client se cerrará después, podemos dejar que haga cleanup con disconnect
       Future.delayed(const Duration(seconds: 3), () => client.disconnect());
+    } else if (tv.type == 'tizen') {
+      final client = TizenClient(tv.ip);
+      await client.launchApp('com.aur.flux', {
+        'host': host,
+        'port': port,
+        if (widget.candidate.isExternal) 'url': widget.candidate.uri.toString(),
+        if (widget.candidate.httpHeaders != null && widget.candidate.httpHeaders!.isNotEmpty) 
+          'headers': widget.candidate.httpHeaders,
+      });
     } else if (tv.type == 'flux_app' || tv.type == 'android_tv') {
       try {
         final client = HttpClient();
         final request = await client.postUrl(Uri.parse('http://${tv.ip}:8080/launch'));
         request.headers.contentType = ContentType.json;
-        request.write(jsonEncode({'host': host, 'port': port}));
+        request.write(jsonEncode({
+          'host': host,
+          'port': port,
+          if (widget.candidate.isExternal) 'url': widget.candidate.uri.toString(),
+          if (widget.candidate.httpHeaders != null && widget.candidate.httpHeaders!.isNotEmpty) 
+            'headers': widget.candidate.httpHeaders,
+        }));
         await request.close();
         client.close();
       } catch (e) {
@@ -99,7 +118,7 @@ class _CastDialogState extends ConsumerState<CastDialog> {
                   final tv = devices[index];
                   return ListTile(
                     leading: Icon(
-                      tv.type == 'webos' ? Icons.tv : Icons.ad_units,
+                      (tv.type == 'webos' || tv.type == 'tizen') ? Icons.tv : Icons.ad_units,
                     ),
                     title: Text(tv.name),
                     subtitle: Text(tv.ip),

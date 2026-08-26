@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,7 +9,9 @@ import '../../player/presentation/player_screen.dart';
 import '../domain/discovery_event.dart';
 import '../domain/lan_subnet.dart';
 import '../domain/stream_candidate.dart';
+import '../../browser/presentation/browser_screen.dart';
 import 'discovery_controller.dart';
+import 'widgets/external_link_sheet.dart';
 import 'widgets/manual_connect_sheet.dart';
 import 'widgets/stream_card.dart';
 
@@ -64,6 +68,30 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     if (candidate != null && mounted) await _play(candidate);
   }
 
+  Future<void> _openExternalLink() async {
+    final candidate = await ExternalLinkSheet.show(context);
+    if (candidate != null && mounted) await _play(candidate);
+  }
+
+  Future<void> _openBrowser() async {
+    if (Platform.isWindows || Platform.isLinux) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El navegador embebido aún no está soportado en esta plataforma (v1).'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    final candidate = await Navigator.of(context).push(
+      MaterialPageRoute<StreamCandidate?>(
+        builder: (_) => const BrowserScreen(),
+      ),
+    );
+    if (candidate != null && mounted) await _play(candidate);
+  }
+
   void _showPrivacyPolicy() {
     showDialog(
       context: context,
@@ -71,14 +99,14 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         title: const Text('Política de Privacidad'),
         content: const SingleChildScrollView(
           child: Text(
-            'Flux es una aplicación diseñada para funcionar '
-            'exclusivamente dentro de tu red local.\n\n'
+            'Flux es una aplicación diseñada para descubrir e interactuar con '
+            'servidores de medios locales, y opcionalmente reproducir enlaces de Internet.\n\n'
             '• No recopilamos, almacenamos ni compartimos ningún tipo de '
             'información personal.\n'
-            '• Todo el descubrimiento de dispositivos (TVs, emisores, receptores) y '
-            'la reproducción de medios ocurre de forma local (LAN) y directa '
-            'entre tus dispositivos.\n'
-            '• No utilizamos servidores externos para telemetría ni analíticas de uso.\n\n'
+            '• El descubrimiento automático ocurre de forma local (LAN).\n'
+            '• Si usas el navegador embebido o pegas enlaces externos, Flux se '
+            'conectará a esos servidores de Internet para extraer el video.\n'
+            '• No utilizamos servidores centralizados para telemetría ni analíticas de uso.\n\n'
             'Al usar Flux, tienes la tranquilidad de que tus datos y hábitos '
             'de visualización permanecen 100% privados y bajo tu control.',
           ),
@@ -151,8 +179,18 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         ),
         actions: [
           IconButton(
+            onPressed: _openBrowser,
+            tooltip: 'Navegador web',
+            icon: const Icon(Icons.public),
+          ),
+          IconButton(
+            onPressed: _openExternalLink,
+            tooltip: 'Pegar enlace de Internet',
+            icon: const Icon(Icons.link_rounded),
+          ),
+          IconButton(
             onPressed: _openManual,
-            tooltip: 'Conectar a mano',
+            tooltip: 'Conectar a mano (LAN)',
             icon: const Icon(Icons.keyboard_alt_outlined),
           ),
           _SubnetMenu(

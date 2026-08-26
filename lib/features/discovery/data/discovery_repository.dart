@@ -3,6 +3,7 @@ import 'dart:async';
 import '../domain/discovery_event.dart';
 import '../domain/lan_subnet.dart';
 import '../domain/stream_candidate.dart';
+import 'external_links_store.dart';
 import 'known_hosts_store.dart';
 import 'parallel.dart';
 import 'port_scanner.dart';
@@ -26,16 +27,19 @@ class DiscoveryRepository {
     PortScanner? scanner,
     StreamProber? prober,
     KnownHostsStore? knownHosts,
+    ExternalLinksStore? externalLinks,
   })  : _detector = detector ?? const SubnetDetector(),
         _scanner = scanner ?? PortScanner(config: config),
         _prober = prober ?? StreamProber(config: config),
-        _knownHosts = knownHosts ?? KnownHostsStore();
+        _knownHosts = knownHosts ?? KnownHostsStore(),
+        _externalLinks = externalLinks ?? ExternalLinksStore();
 
   final ScanConfig config;
   final SubnetDetector _detector;
   final PortScanner _scanner;
   final StreamProber _prober;
   final KnownHostsStore _knownHosts;
+  final ExternalLinksStore _externalLinks;
 
   late final Semaphore _probeGate = Semaphore(config.probeConcurrency);
   late final Semaphore _benchGate = Semaphore(config.benchmarkConcurrency);
@@ -50,11 +54,20 @@ class DiscoveryRepository {
   Future<StreamCandidate?> probeManual(String host, int port) =>
       _prober.probe(host, port, source: DiscoverySource.manual);
 
+  /// Comprueba una URL de Internet (ej. enlace pegado por el usuario).
+  Future<StreamCandidate?> probeExternalLink(
+          ({String host, int port, Uri uri}) parsed,
+          {Map<String, String>? httpHeaders}) =>
+      _prober.probeExternal(parsed.uri, source: DiscoverySource.directLink, httpHeaders: httpHeaders);
+
   Future<StreamMetrics?> measure(StreamCandidate candidate) =>
       _benchGate.run(() => _prober.benchmark(candidate));
 
   Future<void> remember(StreamCandidate candidate) =>
       _knownHosts.remember(candidate.host, candidate.port);
+
+  Future<void> rememberExternal(StreamCandidate candidate) =>
+      _externalLinks.remember(candidate);
 
   Stream<DiscoveryEvent> scan({LanSubnet? subnet, bool exhaustive = false}) {
     final session = _ScanSession();

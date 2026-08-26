@@ -25,6 +25,8 @@ class DiscoveryState {
     this.message,
     this.manualError,
     this.checkingManual = false,
+    this.directLinkError,
+    this.checkingDirectLink = false,
   });
 
   final ScanPhase phase;
@@ -38,6 +40,10 @@ class DiscoveryState {
   final String? message;
   final String? manualError;
   final bool checkingManual;
+
+  /// Error al comprobar un enlace externo pegado a mano.
+  final String? directLinkError;
+  final bool checkingDirectLink;
 
   bool get isScanning => phase.isRunning;
   bool get isEmpty => candidates.isEmpty;
@@ -62,8 +68,11 @@ class DiscoveryState {
     String? message,
     String? manualError,
     bool? checkingManual,
+    String? directLinkError,
+    bool? checkingDirectLink,
     bool clearMessage = false,
     bool clearManualError = false,
+    bool clearDirectLinkError = false,
   }) {
     return DiscoveryState(
       phase: phase ?? this.phase,
@@ -75,6 +84,8 @@ class DiscoveryState {
       message: clearMessage ? null : (message ?? this.message),
       manualError: clearManualError ? null : (manualError ?? this.manualError),
       checkingManual: checkingManual ?? this.checkingManual,
+      directLinkError: clearDirectLinkError ? null : (directLinkError ?? this.directLinkError),
+      checkingDirectLink: checkingDirectLink ?? this.checkingDirectLink,
     );
   }
 }
@@ -203,6 +214,8 @@ class DiscoveryController extends Notifier<DiscoveryState> {
 
   static int _sourceRank(DiscoverySource source) => switch (source) {
         DiscoverySource.manual => 0,
+        DiscoverySource.directLink => 0,
+        DiscoverySource.webBrowser => 0,
         DiscoverySource.remembered => 1,
         DiscoverySource.quickScan => 2,
         DiscoverySource.wideScan => 3,
@@ -258,6 +271,49 @@ class DiscoveryController extends Notifier<DiscoveryState> {
 
   void clearManualError() =>
       state = state.copyWith(clearManualError: true);
+
+  void clearDirectLinkError() =>
+      state = state.copyWith(clearDirectLinkError: true);
+
+  /// Añade un enlace externo (Internet). Devuelve el candidato si es válido.
+  Future<StreamCandidate?> addDirectLink(String input, {Map<String, String>? httpHeaders}) async {
+    final parsed = KnownHostsStore.parseExternalLink(input);
+    if (parsed == null) {
+      state = state.copyWith(
+        directLinkError: 'Enlace no válido. Pega una URL HTTP o HTTPS de video, '
+            'por ejemplo https://ejemplo.com/video.mp4',
+        checkingDirectLink: false,
+      );
+      return null;
+    }
+
+    state = state.copyWith(checkingDirectLink: true, clearDirectLinkError: true);
+    final candidate = await _repository.probeExternalLink(parsed, httpHeaders: httpHeaders);
+    if (!ref.mounted) return null;
+
+    if (candidate == null) {
+      state = state.copyWith(
+        checkingDirectLink: false,
+        directLinkError: 'No se encontró video en ese enlace. '
+            'Comprueba que la URL apunte a un archivo de video.',
+      );
+      return null;
+    }
+
+    state = state.copyWith(
+      checkingDirectLink: false,
+      candidates: _merge(candidate),
+      clearDirectLinkError: true,
+    );
+    unawaited(_measure(candidate));
+    return candidate;
+  }
+
+  /// Añade un candidato detectado por el navegador embebido directamente.
+  void addBrowserCandidate(StreamCandidate candidate) {
+    state = state.copyWith(candidates: _merge(candidate));
+    unawaited(_measure(candidate));
+  }
 }
 
 final discoveryControllerProvider =

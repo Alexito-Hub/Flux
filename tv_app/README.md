@@ -143,17 +143,17 @@ ares-setup-device
 ```
 
 ```bash
-ares-install --device tv build/webos/com.alessandro.flux_1.0.0_all.ipk
+ares-install --device tv build/webos/com.aur.flux_1.0.0_all.ipk
 ```
 
 ```bash
-ares-launch --device tv com.alessandro.flux
+ares-launch --device tv com.aur.flux
 ```
 
 Para ver la consola mientras corre en el televisor:
 
 ```bash
-ares-inspect --device tv --app com.alessandro.flux
+ares-inspect --device tv --app com.aur.flux
 ```
 
 ## Estado

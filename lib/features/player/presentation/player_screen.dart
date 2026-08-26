@@ -34,8 +34,11 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
-  late final PlayerController _controller =
-      PlayerController(uri: widget.candidate.uri);
+  late final PlayerController _controller = PlayerController(
+    uri: widget.candidate.uri,
+    isExternal: widget.candidate.isExternal,
+    httpHeaders: widget.candidate.httpHeaders,
+  );
   final _focusNode = FocusNode();
 
   /// Sonda propia del reproductor: vigilar la emisión no debe competir por la

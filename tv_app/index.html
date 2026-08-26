@@ -112,13 +112,18 @@
 
 
 
+    <div id="play-pause-feedback" class="play-pause-feedback">
+      <svg id="icon-play" style="display:none;" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      <svg id="icon-pause" style="display:none;" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    </div>
+
     <div id="controls" class="controls">
       <div class="controls-top">
         <div class="controls-info" style="flex: 1;">
           <p id="player-title" class="player-title"></p>
           <p id="player-address" class="player-address"></p>
         </div>
-        <button id="btn-tracks" class="icon-btn" style="color: white; transform: scale(1.5);">
+        <button id="btn-tracks" class="icon-btn" style="color: #3DDC97; background: rgba(61,220,151,0.1); transform: scale(1.5);">
           <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1.5c0 .28-.22.5-.5.5h-3c-.28 0-.5-.22-.5-.5v-4c0-.28.22-.5.5-.5h3c.28 0 .5.22.5.5V11zm6 0h-1.5v-.5h-2v3h2V13H17v1.5c0 .28-.22.5-.5.5h-3c-.28 0-.5-.22-.5-.5v-4c0-.28.22-.5.5-.5h3c.28 0 .5.22.5.5V11z"/></svg>
         </button>
       </div>
@@ -132,12 +137,13 @@
           <span id="time-now">00:00</span>
           <span id="time-total">--:--</span>
         </div>
-        <p class="hints">
-          OK reproducir/pausar &nbsp;·&nbsp; &#9664; &#9654; saltar 10 s
-          &nbsp;·&nbsp; &#9650; &#9660; saltar 60 s &nbsp;·&nbsp;
-          <span id="follow-hint">seguimiento activo</span> &nbsp;·&nbsp;
-          ATRÁS salir
-        </p>
+        <div class="hints">
+          <div class="hint-badge"><span class="icon">OK</span> Pausa</div>
+          <div class="hint-badge"><span class="icon">◀ ▶</span> 10s</div>
+          <div class="hint-badge"><span class="icon">▲ ▼</span> 60s</div>
+          <div class="hint-badge" id="follow-hint" style="color: #3DDC97;">Sincronizado</div>
+          <div class="hint-badge"><span class="icon">ATRÁS</span> Salir</div>
+        </div>
       </div>
     </div>
 
@@ -154,15 +160,15 @@
 
   <!-- Tracks Modal -->
   <div id="view-tracks" class="modal-overlay">
-    <div class="modal modal-large">
-      <h2 class="modal-title">Subtítulos y Audio</h2>
+    <div class="modal-content modal-large glass-panel">
+      <h2 class="modal-title" style="margin-bottom: 3vh; font-size: 2.2vw; font-weight: 700;">Audio y Subtítulos</h2>
       <div class="tracks-layout">
         <div class="tracks-column">
-          <h3>Subtítulos</h3>
+          <h3 class="tracks-header">Subtítulos</h3>
           <ul id="list-subtitles" class="tracks-list"></ul>
         </div>
         <div class="tracks-column">
-          <h3>Audio</h3>
+          <h3 class="tracks-header">Pistas de Audio</h3>
           <ul id="list-audio" class="tracks-list"></ul>
         </div>
       </div>

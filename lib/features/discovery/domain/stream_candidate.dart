@@ -2,7 +2,18 @@ import '../../../core/utils/formatters.dart';
 
 /// Cómo llegamos a este stream. Cambia el orden en pantalla: lo que ya
 /// funcionó ayer se prueba y se muestra antes que un hallazgo nuevo.
-enum DiscoverySource { remembered, quickScan, wideScan, manual }
+enum DiscoverySource {
+  remembered,
+  quickScan,
+  wideScan,
+  manual,
+
+  /// El usuario pegó una URL externa a mano.
+  directLink,
+
+  /// Se detectó dentro del navegador embebido.
+  webBrowser,
+}
 
 /// Medición de rendimiento de un stream concreto.
 ///
@@ -52,12 +63,14 @@ class StreamMetrics {
   }
 }
 
-/// Un servidor de video encontrado en la LAN y ya validado.
+/// Un servidor de video encontrado en la LAN y ya validado, o un enlace
+/// externo / video detectado en el navegador embebido.
 class StreamCandidate {
   const StreamCandidate({
     required this.host,
     required this.port,
     required this.source,
+    this.explicitUri,
     this.fileName,
     this.contentType,
     this.sizeBytes,
@@ -66,11 +79,21 @@ class StreamCandidate {
     this.lastModified,
     this.metrics,
     this.discoveredAt,
+    this.httpHeaders,
   });
 
   final String host;
   final int port;
   final DiscoverySource source;
+
+  /// URI completa para orígenes externos (directLink, webBrowser). Cuando está
+  /// presente, [uri] la devuelve tal cual con su scheme, path y query
+  /// originales en vez de reconstruir `http://host:port/`.
+  ///
+  /// [host] y [port] siguen poblados (parseados desde esta URI) porque otras
+  /// partes del código (casting a webOS/Flux receiver, dirección de red) los
+  /// siguen necesitando.
+  final Uri? explicitUri;
 
   /// Nombre real del archivo, sacado de `Content-Disposition`. Es el dato que
   /// convierte una lista de IPs en una lista de películas.
@@ -90,38 +113,85 @@ class StreamCandidate {
   final StreamMetrics? metrics;
   final DateTime? discoveredAt;
 
+  /// Cabeceras HTTP (Referer, User-Agent) necesarias para reproducir el stream.
+  final Map<String, String>? httpHeaders;
+
+  /// `true` cuando el origen es un enlace externo o un video del navegador
+  /// embebido — no LAN.
+  bool get isExternal => explicitUri != null;
+
   String get address => '$host:$port';
-  Uri get uri => Uri.parse('http://$host:$port/');
-  String get id => address;
+
+  /// Para orígenes LAN devuelve `http://host:port/`; para externos devuelve
+  /// la [explicitUri] original con su scheme, path y query.
+  Uri get uri => explicitUri ?? Uri.parse('http://$host:$port/');
+
+  /// Los candidatos LAN se identifican por `host:port`; los externos por su
+  /// URL completa, ya que varios videos pueden venir del mismo host.
+  String get id => explicitUri?.toString() ?? address;
 
   /// Identifica **qué archivo** hay detrás del puerto, no el puerto.
   ///
   /// Cuando cambias de capítulo en Movie Plus, la dirección sigue siendo la
   /// misma pero el contenido es otro. Comparar esta huella es lo que permite
   /// darse cuenta; comparar la URL no serviría de nada.
-  String get fingerprint => [
-        fileName ?? '',
-        sizeBytes ?? 0,
-        lastModified?.millisecondsSinceEpoch ?? 0,
-      ].join('|');
+  ///
+  /// Para orígenes externos sin metadata LAN, la propia URL sirve como huella.
+  String get fingerprint {
+    if (isExternal &&
+        fileName == null &&
+        sizeBytes == null &&
+        lastModified == null) {
+      return explicitUri.toString();
+    }
+    return [
+      fileName ?? '',
+      sizeBytes ?? 0,
+      lastModified?.millisecondsSinceEpoch ?? 0,
+    ].join('|');
+  }
 
   bool isSameContentAs(StreamCandidate other) =>
       fingerprint == other.fingerprint;
 
   /// Lo que se lee en la tarjeta: el nombre del episodio si lo sabemos, si no
   /// la dirección.
-  String get title =>
-      fileName == null ? address : Fmt.prettyTitle(fileName!);
+  String get title {
+    if (fileName != null) return Fmt.prettyTitle(fileName!);
+    if (isExternal) {
+      // Para URLs externas, intentar extraer un nombre legible del path.
+      final pathSegments = explicitUri!.pathSegments;
+      if (pathSegments.isNotEmpty) {
+        final last = pathSegments.last;
+        if (last.isNotEmpty) return Fmt.prettyTitle(last);
+      }
+      return explicitUri!.host;
+    }
+    return address;
+  }
 
-  bool get hasTitle => fileName != null;
+  bool get hasTitle => fileName != null || isExternal;
 
   /// Etiqueta corta del contenedor: MKV, MP4, AVI...
   String? get container {
+    // Intentar desde el nombre de archivo.
     final name = fileName;
     if (name != null) {
       final dot = name.lastIndexOf('.');
       if (dot > 0 && name.length - dot <= 5) {
         return name.substring(dot + 1).toUpperCase();
+      }
+    }
+    // Intentar desde el path de la URI explícita.
+    if (isExternal && name == null) {
+      final path = explicitUri!.path;
+      final dot = path.lastIndexOf('.');
+      if (dot > 0 && path.length - dot <= 5) {
+        final ext = path.substring(dot + 1).toUpperCase();
+        if (const {'MP4', 'MKV', 'WEBM', 'AVI', 'MOV', 'FLV', 'TS', 'M3U8', 'MPD'}
+            .contains(ext)) {
+          return ext;
+        }
       }
     }
     return switch (contentType) {
@@ -135,14 +205,17 @@ class StreamCandidate {
   }
 
   StreamCandidate copyWith({
+    Uri? explicitUri,
     StreamMetrics? metrics,
     DiscoverySource? source,
     String? fileName,
+    Map<String, String>? httpHeaders,
   }) {
     return StreamCandidate(
       host: host,
       port: port,
       source: source ?? this.source,
+      explicitUri: explicitUri ?? this.explicitUri,
       fileName: fileName ?? this.fileName,
       contentType: contentType,
       sizeBytes: sizeBytes,
@@ -151,6 +224,7 @@ class StreamCandidate {
       lastModified: lastModified,
       metrics: metrics ?? this.metrics,
       discoveredAt: discoveredAt,
+      httpHeaders: httpHeaders ?? this.httpHeaders,
     );
   }
 

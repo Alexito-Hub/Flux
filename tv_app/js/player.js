@@ -53,6 +53,11 @@ function FluxPlayer(video, handlers) {
         
         mediaTransportType: 'URI'
       };
+      
+      if (candidate && candidate.headers) {
+        opts.option.httpHeader = candidate.headers;
+      }
+      
       video.setAttribute('mediaOption', JSON.stringify(opts));
     } catch (e) {
       

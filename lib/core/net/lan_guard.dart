@@ -66,4 +66,24 @@ abstract final class LanGuard {
 
   static bool isPrivateAddress(InternetAddress address) =>
       address.type == InternetAddressType.IPv4 && isPrivate(address.address);
+
+  /// Valida una URI proveniente de un origen externo (enlace pegado a mano,
+  /// navegador embebido). A diferencia de [isAllowedUri], **acepta** hosts
+  /// públicos — pero bloquea esquemas peligrosos y direcciones que intentan
+  /// colarse como externas siendo realmente locales.
+  static bool isAllowedExternalUri(Uri uri) {
+    // Solo HTTP/HTTPS — bloquea file://, data://, javascript://, etc.
+    if (uri.scheme != 'http' && uri.scheme != 'https') return false;
+    if (uri.host.isEmpty) return false;
+    if (!isAllowedPort(uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80))) {
+      return false;
+    }
+    // Rechazar IPs privadas disfrazadas de externas: si alguien pega
+    // http://192.168.1.5/video.mp4 como "enlace externo", debe usar el
+    // flujo manual LAN en su lugar.
+    if (isPrivate(uri.host) || isLoopback(uri.host) || isLinkLocal(uri.host)) {
+      return false;
+    }
+    return true;
+  }
 }

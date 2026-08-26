@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:multicast_dns/multicast_dns.dart';
 
 final String appInstanceId = DateTime.now().millisecondsSinceEpoch.toString();
 
@@ -12,10 +11,15 @@ final castReceiverProvider = Provider<CastReceiverService>((ref) {
 });
 
 class CastReceiverService {
-  MDnsClient? _mdns;
   HttpServer? _server;
   RawDatagramSocket? _udpSocket;
-  Function(String host, int port)? onPlayCommand;
+  Function(String host, int port, {String? url})? onPlayCommand;
+
+  /// Rango de puertos UDP a intentar para discovery. Si el primero está
+  /// ocupado (otra instancia de Flux en la misma máquina, o test local)
+  /// probamos los siguientes para que al menos el HTTP /info siga disponible.
+  static const udpPortStart = 8081;
+  static const udpPortEnd = 8089;
 
   Future<void> start() async {
     try {
@@ -40,9 +44,10 @@ class CastReceiverService {
             final data = jsonDecode(content);
             final host = data['host'] as String?;
             final port = data['port'] as int?;
+            final url = data['url'] as String?;
             
             if (host != null && port != null && onPlayCommand != null) {
-              onPlayCommand!(host, port);
+              onPlayCommand!(host, port, url: url);
               request.response
                 ..headers.add('Access-Control-Allow-Origin', '*')
                 ..statusCode = HttpStatus.ok
@@ -60,11 +65,19 @@ class CastReceiverService {
               ..write('{"error": "failed to parse JSON"}');
           }
         } else if (request.method == 'GET' && request.uri.path == '/info') {
-           // Endpoint para descubrimiento manual
+           // Endpoint para descubrimiento — incluye instanceId para que el
+           // discovery TCP pueda filtrar auto-detección.
+           final info = jsonEncode({
+             'app': 'Flux',
+             'type': 'receiver',
+             'os': Platform.operatingSystem,
+             'instanceId': appInstanceId,
+           });
            request.response
               ..headers.add('Access-Control-Allow-Origin', '*')
+              ..headers.contentType = ContentType.json
               ..statusCode = HttpStatus.ok
-              ..write('{"app": "Flux", "type": "receiver"}');
+              ..write(info);
         } else {
           request.response
             ..statusCode = HttpStatus.notFound
@@ -76,31 +89,39 @@ class CastReceiverService {
       debugPrint('[Flux] Error al iniciar servidor HTTP para Cast: $e');
     }
 
-    try {
-      _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 8081);
-      _udpSocket!.broadcastEnabled = true;
-      _udpSocket!.listen((RawSocketEvent event) {
-        if (event == RawSocketEvent.read) {
-          Datagram? dg = _udpSocket!.receive();
-          if (dg != null) {
-            final msg = utf8.decode(dg.data);
-            if (msg == 'FLUX_DISCOVER') {
-              // Responder al emisor que somos un receptor Flux (incluyendo OS e instanceId)
-              final reply = utf8.encode('FLUX_RECEIVER:${_server?.port ?? 8080}:${Platform.operatingSystem}:$appInstanceId');
-              _udpSocket!.send(reply, dg.address, dg.port);
+    // Intentar bind UDP en varios puertos para tolerar que otro Flux ya
+    // tenga tomado el primero.
+    for (var port = udpPortStart; port <= udpPortEnd; port++) {
+      try {
+        _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, port);
+        _udpSocket!.broadcastEnabled = true;
+        _udpSocket!.listen((RawSocketEvent event) {
+          if (event == RawSocketEvent.read) {
+            Datagram? dg = _udpSocket!.receive();
+            if (dg != null) {
+              final msg = utf8.decode(dg.data);
+              if (msg == 'FLUX_DISCOVER') {
+                // Responder al emisor que somos un receptor Flux (incluyendo OS e instanceId)
+                final reply = utf8.encode('FLUX_RECEIVER:${_server?.port ?? 8080}:${Platform.operatingSystem}:$appInstanceId');
+                _udpSocket!.send(reply, dg.address, dg.port);
+              }
             }
           }
+        });
+        debugPrint('[Flux] CastReceiverService escuchando UDP discovery en puerto $port');
+        break; // Éxito — no probar más puertos.
+      } catch (e) {
+        debugPrint('[Flux] Puerto UDP $port ocupado, intentando siguiente... ($e)');
+        if (port == udpPortEnd) {
+          debugPrint('[Flux] No se pudo iniciar UDP discovery en ningún puerto '
+              '($udpPortStart-$udpPortEnd). El descubrimiento TCP /info sigue activo.');
         }
-      });
-      debugPrint('[Flux] CastReceiverService escuchando UDP discovery en puerto 8081');
-    } catch (e) {
-      debugPrint('[Flux] Error al iniciar UDP discovery: $e');
+      }
     }
   }
 
   void stop() {
     _server?.close(force: true);
     _udpSocket?.close();
-    _mdns?.stop();
   }
 }

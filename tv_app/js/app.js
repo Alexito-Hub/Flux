@@ -84,6 +84,13 @@
     el.btnRetry.onclick = function () { hideError(); if (player) { player.retry(); } };
     el.btnPlayerBack.onclick = leavePlayer;
     if (el.btnTracks) { el.btnTracks.onclick = openTracks; }
+    
+    el.iconPlay = byId('icon-play');
+    el.iconPause = byId('icon-pause');
+    el.playPauseFeedback = byId('play-pause-feedback');
+    
+    el.video.addEventListener('play', function () { showPlayPauseFeedback(true); }, false);
+    el.video.addEventListener('pause', function () { showPlayPauseFeedback(false); }, false);
 
     document.addEventListener('keydown', onKey, false);
 
@@ -110,6 +117,15 @@
   }
 
   function requestKeepAlive(value) {
+    if (window.tizen && typeof tizen.power !== 'undefined') {
+      try {
+        if (value) {
+          tizen.power.request('SCREEN', 'SCREEN_NORMAL');
+        } else {
+          tizen.power.release('SCREEN');
+        }
+      } catch (e) { }
+    }
     
     if (window.webOSSystem && typeof webOSSystem.keepAlive === 'function') {
       try { webOSSystem.keepAlive(value); } catch (e) {  }
@@ -121,8 +137,10 @@
   }
 
   function setScreenSaver(enabled) {
-    if (!window.PalmServiceBridge) { return; }
     screenSaverDisabled = !enabled;
+    requestKeepAlive(!enabled);
+    
+    if (!window.PalmServiceBridge) { return; }
 
     var bridge;
     try { bridge = new window.PalmServiceBridge(); } catch (e) { return; }
@@ -151,7 +169,7 @@
         'luna://com.webos.service.power2/display/setState',
         JSON.stringify({
           state: enabled ? 'ActiveStandby' : 'Active',
-          reason: 'com.alessandro.flux'
+          reason: 'com.aur.flux'
         })
       );
     } catch (e2) {  }
@@ -212,6 +230,7 @@
   }
 
   function checkLaunchParams() {
+    // webOS params
     var paramsStr = '';
     if (window.webOSSystem && window.webOSSystem.launchParams) {
       paramsStr = window.webOSSystem.launchParams;
@@ -222,19 +241,41 @@
     if (paramsStr) {
       try {
         var params = JSON.parse(paramsStr);
-        if (params.host && params.port) {
-          
+        if (params && (params.host || params.url)) {
           if (window.webOSSystem) { window.webOSSystem.launchParams = ''; }
           if (window.PalmSystem) { window.PalmSystem.launchParams = ''; }
-          
           var candidate = FluxDiscovery.candidateFrom(params, 'cast');
           openPlayer(candidate);
           return true;
         }
-      } catch (e) {
-        console.error('Error parseando launchParams', e);
-      }
+      } catch (e) { }
     }
+
+    // Tizen params
+    if (window.tizen && typeof tizen.application !== 'undefined') {
+      try {
+        var appControl = tizen.application.getCurrentApplication().getRequestedAppControl();
+        if (appControl && appControl.appControl) {
+          var reqData = appControl.appControl.data;
+          var params = {};
+          
+          for (var i = 0; i < reqData.length; i++) {
+            if (reqData[i].key === 'PAYLOAD') {
+              try {
+                params = JSON.parse(reqData[i].value[0]);
+              } catch (e) {}
+            }
+          }
+          
+          if (params && (params.host || params.url)) {
+            var candidate = FluxDiscovery.candidateFrom(params, 'cast');
+            openPlayer(candidate);
+            return true;
+          }
+        }
+      } catch (e) { }
+    }
+
     return false;
   }
 
@@ -539,10 +580,21 @@
 
   function showBanner(message, warning) {
     el.bannerText.innerHTML = escape(message);
-    el.banner.className = 'banner is-visible' + (warning ? ' is-warning' : '');
-    clearTimeout(bannerTimer);
-    if (warning) { return; }
-    bannerTimer = setTimeout(hideBanner, 4000);
+    el.banner.className = 'banner';
+    setTimeout(function () { el.banner.className = 'banner is-visible' + (warning ? ' is-warning' : ''); }, 10);
+    bannerTimer = setTimeout(function () { el.banner.className = 'banner'; }, 4000);
+  }
+  
+  var playPauseTimer = null;
+  function showPlayPauseFeedback(isPlaying) {
+    if (playPauseTimer) { clearTimeout(playPauseTimer); }
+    el.iconPlay.style.display = isPlaying ? 'block' : 'none';
+    el.iconPause.style.display = isPlaying ? 'none' : 'block';
+    
+    el.playPauseFeedback.className = 'play-pause-feedback pop';
+    playPauseTimer = setTimeout(function () {
+      el.playPauseFeedback.className = 'play-pause-feedback';
+    }, 500);
   }
 
   function hideBanner() { el.banner.className = 'banner'; }

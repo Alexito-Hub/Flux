@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.alessandro" "\0"
+            VALUE "CompanyName", "com.aur" "\0"
             VALUE "FileDescription", "flux" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "flux" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.alessandro. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.aur.flux. All rights reserved." "\0"
             VALUE "OriginalFilename", "flux.exe" "\0"
             VALUE "ProductName", "flux" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

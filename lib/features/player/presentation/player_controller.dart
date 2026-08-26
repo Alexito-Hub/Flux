@@ -18,10 +18,17 @@ import '../../../core/net/lan_guard.dart';
 /// toda la UI, los controles se reconstruirían 10 veces por segundo sin
 /// necesidad.
 class PlayerController extends ChangeNotifier {
-  PlayerController({required Uri uri, this.startVolume = 100}) : _uri = uri;
+  PlayerController({
+    required Uri uri,
+    this.startVolume = 100,
+    this.isExternal = false,
+    this.httpHeaders,
+  }) : _uri = uri;
 
   Uri _uri;
   final double startVolume;
+  final bool isExternal;
+  final Map<String, String>? httpHeaders;
 
   Uri get uri => _uri;
 
@@ -151,9 +158,13 @@ class PlayerController extends ChangeNotifier {
   }
 
   bool _guard(Uri candidate) {
-    if (LanGuard.isAllowedUri(candidate)) return true;
-    _fatalError =
-        'Dirección no permitida: Flux solo reproduce desde tu red local.';
+    if (isExternal) {
+      if (LanGuard.isAllowedExternalUri(candidate)) return true;
+      _fatalError = 'Dirección no permitida: El enlace externo no es válido o apunta a una dirección interna insegura.';
+    } else {
+      if (LanGuard.isAllowedUri(candidate)) return true;
+      _fatalError = 'Dirección no permitida: Flux solo reproduce desde tu red local.';
+    }
     notifyListeners();
     return false;
   }
@@ -166,7 +177,13 @@ class PlayerController extends ChangeNotifier {
     try {
       // `play: false` es lo que hace posible la precarga: mpv abre el archivo
       // y empieza a llenar su caché sin mostrar nada todavía.
-      await player.open(Media(_uri.toString()), play: false);
+      await player.open(
+        Media(
+          _uri.toString(),
+          httpHeaders: httpHeaders,
+        ),
+        play: false,
+      );
       if (_isStale(generation)) return;
       await _restoreProgress();
       await _prebuffer(generation);
